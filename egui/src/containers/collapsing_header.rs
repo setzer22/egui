@@ -121,7 +121,7 @@ pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response, empty_
     ui.painter().add(if empty_icon {
         Shape::closed_line(points, stroke)
     } else {
-        Shape::convex_polygon(points, stroke.color, stroke)
+        Shape::convex_polygon(points, stroke.color, Stroke::none())
     });
 }
 
