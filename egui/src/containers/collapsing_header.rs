@@ -102,7 +102,7 @@ impl State {
 }
 
 /// Paint the arrow icon that indicated if the region is open or not
-pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
+pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response, empty_icon: bool) {
     let visuals = ui.style().interact(response);
     let stroke = visuals.fg_stroke;
 
@@ -118,7 +118,11 @@ pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
         *p = rect.center() + rotation * (*p - rect.center());
     }
 
-    ui.painter().add(Shape::closed_line(points, stroke));
+    ui.painter().add(if empty_icon {
+        Shape::closed_line(points, stroke)
+    } else {
+        Shape::convex_polygon(points, stroke.color, stroke)
+    });
 }
 
 /// A header which can be collapsed/expanded, revealing a contained [`Ui`] region.
@@ -138,6 +142,7 @@ pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response) {
 pub struct CollapsingHeader {
     label: Label,
     default_open: bool,
+    empty_icon: bool,
     id_source: Id,
     enabled: bool,
 }
@@ -155,6 +160,7 @@ impl CollapsingHeader {
         Self {
             label,
             default_open: false,
+            empty_icon: false,
             id_source,
             enabled: true,
         }
@@ -178,6 +184,13 @@ impl CollapsingHeader {
     /// Call `.text_style(style)` to change this.
     pub fn text_style(mut self, text_style: TextStyle) -> Self {
         self.label = self.label.text_style(text_style);
+        self
+    }
+
+    /// By default, the `CollapsingHeader` draws its icon as a line.
+    /// Call `.empty_icon(style)` to make it opaque
+    pub fn filled_icon(mut self) -> Self {
+        self.empty_icon = true;
         self
     }
 
@@ -206,6 +219,7 @@ impl CollapsingHeader {
             mut label,
             default_open,
             id_source,
+            empty_icon,
             enabled: _,
         } = self;
 
@@ -271,7 +285,7 @@ impl CollapsingHeader {
                 ..header_response.clone()
             };
             let openness = state.openness(ui.ctx(), id);
-            paint_icon(ui, openness, &icon_response);
+            paint_icon(ui, openness, &icon_response, empty_icon);
         }
 
         ui.painter().galley(text_pos, galley, text_color);
