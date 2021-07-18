@@ -187,9 +187,9 @@ impl CollapsingHeader {
         self
     }
 
-    /// By default, the `CollapsingHeader` draws its icon as a line.
-    /// Call `.empty_icon(style)` to make it opaque
-    pub fn filled_icon(mut self) -> Self {
+    /// By default, the `CollapsingHeader` draws its icon as an opaque triangle.
+    /// Call `.empty_icon(style)` to make it a line instead
+    pub fn empty_icon(mut self) -> Self {
         self.empty_icon = true;
         self
     }
@@ -275,7 +275,7 @@ impl CollapsingHeader {
         }
 
         {
-            let (mut icon_rect, _) = ui.spacing().icon_rectangles(header_response.rect);
+            let (_, mut icon_rect) = ui.spacing().icon_rectangles(header_response.rect);
             icon_rect.set_center(pos2(
                 header_response.rect.left() + ui.spacing().indent / 2.0,
                 header_response.rect.center().y,
