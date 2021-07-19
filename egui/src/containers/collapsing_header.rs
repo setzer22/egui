@@ -104,7 +104,7 @@ impl State {
 /// Paint the arrow icon that indicated if the region is open or not
 pub(crate) fn paint_icon(ui: &mut Ui, openness: f32, response: &Response, empty_icon: bool) {
     let visuals = ui.style().interact(response);
-    let stroke = visuals.fg_stroke;
+    let stroke = visuals.fg_stroke_outer;
 
     let rect = response.rect;
 
@@ -262,7 +262,7 @@ impl CollapsingHeader {
             .widget_info(|| WidgetInfo::labeled(WidgetType::CollapsingHeader, &galley.text));
 
         let visuals = ui.style().interact(&header_response);
-        let text_color = visuals.text_color();
+        let text_color = visuals.outer_text_color();
 
         if ui.visuals().collapsing_header_frame {
             ui.painter().add(Shape::Rect {

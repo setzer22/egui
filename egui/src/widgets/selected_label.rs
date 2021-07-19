@@ -92,7 +92,7 @@ impl Widget for SelectableLabel {
             .style()
             .visuals
             .override_text_color
-            .unwrap_or_else(|| visuals.text_color());
+            .unwrap_or_else(|| visuals.outer_text_color());
         ui.painter().galley(text_pos, galley, text_color);
         response
     }

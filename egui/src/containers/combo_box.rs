@@ -205,7 +205,7 @@ fn combo_box(
 
         let text_rect = Align2::LEFT_CENTER.align_size_within_rect(galley.size, rect);
         ui.painter()
-            .galley(text_rect.min, galley, visuals.text_color());
+            .galley(text_rect.min, galley, visuals.inner_text_color());
     });
 
     if button_response.clicked() {

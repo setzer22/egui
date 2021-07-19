@@ -238,8 +238,9 @@ impl Visuals {
     }
 
     pub fn text_color(&self) -> Color32 {
+        // TODO @5Colors
         self.override_text_color
-            .unwrap_or_else(|| self.widgets.noninteractive.text_color())
+            .unwrap_or_else(|| self.widgets.noninteractive.outer_text_color())
     }
 
     pub fn weak_text_color(&self) -> Color32 {
@@ -247,7 +248,8 @@ impl Visuals {
     }
 
     pub fn strong_text_color(&self) -> Color32 {
-        self.widgets.active.text_color()
+        // TODO @5Colors
+        self.widgets.active.outer_text_color()
     }
 
     pub fn window_fill(&self) -> Color32 {
@@ -318,14 +320,25 @@ pub struct WidgetVisuals {
     pub corner_radius: f32,
 
     /// Stroke and text color of the interactive part of a component (button text, slider grab, check-mark, ...).
+    /// Note that this color should be used only when the widget is in contrast with `bg_fill`.
     pub fg_stroke: Stroke,
+
+    /// Stroke and text color for interactive parts of a component when they're contrasting with the window background.
+    /// For parts that contrast with the widget background, see `fg_stroke` instead.
+    pub fg_stroke_outer: Stroke,
 
     /// Make the frame this much larger.
     pub expansion: f32,
 }
 
 impl WidgetVisuals {
-    pub fn text_color(&self) -> Color32 {
+    /// Outer text color: For labels that are alongside widgets
+    pub fn outer_text_color(&self) -> Color32 {
+        self.fg_stroke_outer.color
+    }
+
+    /// Inner text color: For labels that are inside widgets, like buttons
+    pub fn inner_text_color(&self) -> Color32 {
         self.fg_stroke.color
     }
 }
@@ -465,6 +478,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(27), // window background
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(60)), // separators, indentation lines, windows outlines
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(140)), // normal text color
+                fg_stroke_outer: Stroke::new(1.0, Color32::from_gray(170)), // normal text color
                 corner_radius: 2.0,
                 expansion: 0.0,
             },
@@ -472,6 +486,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(60), // button background
                 bg_stroke: Default::default(),
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(180)), // button text
+                fg_stroke_outer: Stroke::new(1.0, Color32::from_gray(210)), // button text
                 corner_radius: 2.0,
                 expansion: 0.0,
             },
@@ -479,6 +494,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(70),
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(150)), // e.g. hover over window edge or button
                 fg_stroke: Stroke::new(1.5, Color32::from_gray(240)),
+                fg_stroke_outer: Stroke::new(1.0, Color32::from_gray(250)), // button text
                 corner_radius: 3.0,
                 expansion: 1.0,
             },
@@ -486,6 +502,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(55),
                 bg_stroke: Stroke::new(1.0, Color32::WHITE),
                 fg_stroke: Stroke::new(2.0, Color32::WHITE),
+                fg_stroke_outer: Stroke::new(2.0, Color32::WHITE),
                 corner_radius: 2.0,
                 expansion: 1.0,
             },
@@ -493,6 +510,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(27),
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(60)),
                 fg_stroke: Stroke::new(1.0, Color32::from_gray(210)),
+                fg_stroke_outer: Stroke::new(1.0, Color32::from_gray(240)),
                 corner_radius: 2.0,
                 expansion: 0.0,
             },
@@ -504,14 +522,16 @@ impl Widgets {
             noninteractive: WidgetVisuals {
                 bg_fill: Color32::from_gray(235), // window background
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(190)), // separators, indentation lines, windows outlines
-                fg_stroke: Stroke::new(1.0, Color32::from_gray(100)), // normal text color
+                fg_stroke: Stroke::new(1.0, Color32::from_gray(70)), // normal text color
+                fg_stroke_outer: Stroke::new(1.0, Color32::from_gray(100)), // normal text color
                 corner_radius: 2.0,
                 expansion: 0.0,
             },
             inactive: WidgetVisuals {
                 bg_fill: Color32::from_gray(215), // button background
                 bg_stroke: Default::default(),
-                fg_stroke: Stroke::new(1.0, Color32::from_gray(80)), // button text
+                fg_stroke: Stroke::new(1.0, Color32::from_gray(50)), // button text
+                fg_stroke_outer: Stroke::new(1.0, Color32::from_gray(80)), // button text
                 corner_radius: 2.0,
                 expansion: 0.0,
             },
@@ -519,6 +539,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(210),
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(105)), // e.g. hover over window edge or button
                 fg_stroke: Stroke::new(1.5, Color32::BLACK),
+                fg_stroke_outer: Stroke::new(1.5, Color32::BLACK),
                 corner_radius: 3.0,
                 expansion: 1.0,
             },
@@ -526,6 +547,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(165),
                 bg_stroke: Stroke::new(1.0, Color32::BLACK),
                 fg_stroke: Stroke::new(2.0, Color32::BLACK),
+                fg_stroke_outer: Stroke::new(2.0, Color32::BLACK),
                 corner_radius: 2.0,
                 expansion: 1.0,
             },
@@ -533,6 +555,7 @@ impl Widgets {
                 bg_fill: Color32::from_gray(220),
                 bg_stroke: Stroke::new(1.0, Color32::from_gray(160)),
                 fg_stroke: Stroke::new(1.0, Color32::BLACK),
+                fg_stroke_outer: Stroke::new(1.0, Color32::BLACK),
                 corner_radius: 2.0,
                 expansion: 0.0,
             },
@@ -770,12 +793,14 @@ impl WidgetVisuals {
             bg_stroke,
             corner_radius,
             fg_stroke,
+            fg_stroke_outer,
             expansion,
         } = self;
         ui_color(ui, bg_fill, "bg_fill");
         stroke_ui(ui, bg_stroke, "bg_stroke");
         ui.add(Slider::new(corner_radius, 0.0..=10.0).text("corner_radius"));
         stroke_ui(ui, fg_stroke, "fg_stroke (text)");
+        stroke_ui(ui, fg_stroke_outer, "fg_stroke_outer (text)");
         ui.add(Slider::new(expansion, -5.0..=5.0).text("expansion"))
             .on_hover_text("make shapes this much larger");
     }

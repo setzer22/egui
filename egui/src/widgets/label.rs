@@ -369,14 +369,14 @@ impl Widget for Label {
                 response |= ui.allocate_rect(rect, sense);
             }
             response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, &galley.text));
-            let response_color = ui.style().interact(&response).text_color();
+            let response_color = ui.style().interact(&response).outer_text_color();
             self.paint_galley_impl(ui, pos, galley, response.has_focus(), response_color);
             response
         } else {
             let galley = self.layout(ui);
             let (rect, response) = ui.allocate_exact_size(galley.size, sense);
             response.widget_info(|| WidgetInfo::labeled(WidgetType::Label, &galley.text));
-            let response_color = ui.style().interact(&response).text_color();
+            let response_color = ui.style().interact(&response).outer_text_color();
             self.paint_galley_impl(ui, rect.min, galley, response.has_focus(), response_color);
             response
         }

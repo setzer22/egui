@@ -186,7 +186,7 @@ impl Button {
 
             let text_color = text_color
                 .or(ui.visuals().override_text_color)
-                .unwrap_or_else(|| visuals.text_color());
+                .unwrap_or_else(|| visuals.inner_text_color());
             ui.painter().galley(text_pos, galley, text_color);
         }
 
@@ -320,7 +320,7 @@ impl<'a> Widget for Checkbox<'a> {
 
         let text_color = text_color
             .or(ui.visuals().override_text_color)
-            .unwrap_or_else(|| visuals.text_color());
+            .unwrap_or_else(|| visuals.outer_text_color());
         ui.painter().galley(text_pos, galley, text_color);
         response
     }
@@ -440,7 +440,7 @@ impl Widget for RadioButton {
 
         let text_color = text_color
             .or(ui.visuals().override_text_color)
-            .unwrap_or_else(|| visuals.text_color());
+            .unwrap_or_else(|| visuals.outer_text_color());
         painter.galley(text_pos, galley, text_color);
         response
     }
