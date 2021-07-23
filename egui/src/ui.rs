@@ -954,6 +954,11 @@ impl Ui {
         label.into().heading().ui(self)
     }
 
+    /// Shortcut for `add(Label::new(text).heading())`
+    pub fn large_heading(&mut self, label: impl Into<Label>) -> Response {
+        label.into().large_heading().ui(self)
+    }
+
     /// Shortcut for `add(Label::new(text).monospace())`
     pub fn monospace(&mut self, label: impl Into<Label>) -> Response {
         label.into().monospace().ui(self)

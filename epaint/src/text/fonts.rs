@@ -29,6 +29,8 @@ pub enum TextStyle {
     Button,
     /// Heading. Probably larger than `Body`.
     Heading,
+    /// A larger Heading.
+    LargeHeading,
     /// Same size as `Body`, but used when monospace is important (for aligning number, code snippets, etc).
     Monospace,
 }
@@ -40,6 +42,7 @@ impl TextStyle {
             TextStyle::Body,
             TextStyle::Button,
             TextStyle::Heading,
+            TextStyle::LargeHeading,
             TextStyle::Monospace,
         ]
         .iter()
@@ -197,6 +200,7 @@ impl Default for FontDefinitions {
         family_and_size.insert(TextStyle::Body, (FontFamily::Proportional, 14.0));
         family_and_size.insert(TextStyle::Button, (FontFamily::Proportional, 14.0));
         family_and_size.insert(TextStyle::Heading, (FontFamily::Proportional, 20.0));
+        family_and_size.insert(TextStyle::LargeHeading, (FontFamily::Proportional, 32.0));
         family_and_size.insert(TextStyle::Monospace, (FontFamily::Monospace, 13.0)); // 13 for `ProggyClean`
 
         Self {

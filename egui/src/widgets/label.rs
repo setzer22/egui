@@ -78,6 +78,10 @@ impl Label {
         self.text_style(TextStyle::Heading)
     }
 
+    pub fn large_heading(self) -> Self {
+        self.text_style(TextStyle::LargeHeading)
+    }
+
     pub fn monospace(self) -> Self {
         self.text_style(TextStyle::Monospace)
     }

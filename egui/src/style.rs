@@ -332,6 +332,12 @@ pub struct WidgetVisuals {
 }
 
 impl WidgetVisuals {
+    /// Defined for compatibility reasons
+    #[deprecated]
+    pub fn text_color(&self) -> Color32 {
+        self.outer_text_color()
+    }
+
     /// Outer text color: For labels that are alongside widgets
     pub fn outer_text_color(&self) -> Color32 {
         self.fg_stroke_outer.color
