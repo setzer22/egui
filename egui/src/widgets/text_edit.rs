@@ -779,7 +779,7 @@ impl<'t, S: TextBuffer> TextEdit<'t, S> {
         let text_color = text_color
             .or(ui.visuals().override_text_color)
             // .unwrap_or_else(|| ui.style().interact(&response).text_color()); // too bright
-            .unwrap_or_else(|| ui.visuals().widgets.inactive.outer_text_color());
+            .unwrap_or_else(|| ui.visuals().widgets.inactive.inner_text_color());
 
         painter.galley(text_draw_pos, galley, text_color);
         if text.as_ref().is_empty() && !hint_text.is_empty() {
