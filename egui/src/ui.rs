@@ -1558,6 +1558,18 @@ impl Ui {
         )
     }
 
+    /// Start a ui with vertical layout.
+    /// Widgets will be left-aligned and justified (fill full width).
+    pub fn vertical_left_justified<R>(
+        &mut self,
+        add_contents: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<R> {
+        self.with_layout(
+            Layout::top_down(Align::Min).with_cross_justify(true),
+            add_contents,
+        )
+    }
+
     /// The new layout will take up all available space.
     ///
     /// Consider using [`Self::allocate_ui_with_layout`] instead,
