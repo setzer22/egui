@@ -48,6 +48,18 @@ impl Order {
             Self::Tooltip => false,
         }
     }
+
+    /// Short and readable summary
+    pub fn short_debug_format(&self) -> &'static str {
+        match self {
+            Self::Background => "backg",
+            Self::PanelResizeLine => "panel",
+            Self::Middle => "middl",
+            Self::Foreground => "foreg",
+            Self::Tooltip => "toolt",
+            Self::Debug => "debug",
+        }
+    }
 }
 
 /// An identifier for a paint layer.
@@ -81,6 +93,15 @@ impl LayerId {
     #[inline(always)]
     pub fn allow_interaction(&self) -> bool {
         self.order.allow_interaction()
+    }
+
+    /// Short and readable summary
+    pub fn short_debug_format(&self) -> String {
+        format!(
+            "{} {}",
+            self.order.short_debug_format(),
+            self.id.short_debug_format()
+        )
     }
 }
 
@@ -157,14 +178,14 @@ impl GraphicLayers {
             for layer_id in area_order {
                 if layer_id.order == order {
                     if let Some(list) = order_map.get_mut(&layer_id.id) {
-                        all_shapes.extend(list.lock().0.drain(..));
+                        all_shapes.append(&mut list.lock().0);
                     }
                 }
             }
 
             // Also draw areas that are missing in `area_order`:
             for shapes in order_map.values_mut() {
-                all_shapes.extend(shapes.lock().0.drain(..));
+                all_shapes.append(&mut shapes.lock().0);
             }
         }
 

@@ -24,11 +24,12 @@ pub(crate) struct FrameState {
     /// If a tooltip has been shown this frame, where was it?
     /// This is used to prevent multiple tooltips to cover each other.
     /// Initialized to `None` at the start of each frame.
-    pub(crate) tooltip_rect: Option<(Id, Rect)>,
+    pub(crate) tooltip_rect: Option<(Id, Rect, usize)>,
 
     /// Cleared by the first `ScrollArea` that makes use of it.
-    pub(crate) scroll_delta: Vec2,
-    pub(crate) scroll_target: Option<(f32, Align)>,
+    pub(crate) scroll_delta: Vec2, // TODO: move to a Mutex inside of `InputState` ?
+    /// horizontal, vertical
+    pub(crate) scroll_target: [Option<(f32, Align)>; 2],
 }
 
 impl Default for FrameState {
@@ -40,7 +41,7 @@ impl Default for FrameState {
             used_by_panels: Rect::NAN,
             tooltip_rect: None,
             scroll_delta: Vec2::ZERO,
-            scroll_target: None,
+            scroll_target: [None; 2],
         }
     }
 }
@@ -63,7 +64,7 @@ impl FrameState {
         *used_by_panels = Rect::NOTHING;
         *tooltip_rect = None;
         *scroll_delta = input.scroll_delta;
-        *scroll_target = None;
+        *scroll_target = [None; 2];
     }
 
     /// How much space is still available after panels has been added.

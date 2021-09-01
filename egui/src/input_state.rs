@@ -83,19 +83,11 @@ impl Default for InputState {
 impl InputState {
     #[must_use]
     pub fn begin_frame(mut self, new: RawInput) -> InputState {
-        #![allow(deprecated)] // for screen_size
-
         let time = new
             .time
             .unwrap_or_else(|| self.time + new.predicted_dt as f64);
         let unstable_dt = (time - self.time) as f32;
-        let screen_rect = new.screen_rect.unwrap_or_else(|| {
-            if new.screen_size != Default::default() {
-                Rect::from_min_size(Default::default(), new.screen_size) // backwards compatibility
-            } else {
-                self.screen_rect
-            }
-        });
+        let screen_rect = new.screen_rect.unwrap_or(self.screen_rect);
         self.create_touch_states_for_new_devices(&new.events);
         for touch_state in self.touch_states.values_mut() {
             touch_state.begin_frame(time, &new, self.pointer.interact_pos);
@@ -602,6 +594,24 @@ impl PointerState {
     #[inline(always)]
     pub(crate) fn could_any_button_be_click(&self) -> bool {
         self.could_be_click
+    }
+
+    /// Is the primary button currently down?
+    #[inline(always)]
+    pub fn primary_down(&self) -> bool {
+        self.button_down(PointerButton::Primary)
+    }
+
+    /// Is the secondary button currently down?
+    #[inline(always)]
+    pub fn secondary_down(&self) -> bool {
+        self.button_down(PointerButton::Secondary)
+    }
+
+    /// Is the middle button currently down?
+    #[inline(always)]
+    pub fn middle_down(&self) -> bool {
+        self.button_down(PointerButton::Middle)
     }
 }
 

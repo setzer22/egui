@@ -116,10 +116,13 @@ impl super::Demo for ManualLayoutTest {
     }
 
     fn show(&mut self, ctx: &egui::CtxRef, open: &mut bool) {
-        egui::Window::new(self.name()).open(open).show(ctx, |ui| {
-            use super::View;
-            self.ui(ui);
-        });
+        egui::Window::new(self.name())
+            .resizable(false)
+            .open(open)
+            .show(ctx, |ui| {
+                use super::View;
+                self.ui(ui);
+            });
     }
 }
 
@@ -397,7 +400,7 @@ impl super::Demo for WindowResizeTest {
 
         Window::new("↔ resizable + scroll")
             .open(open)
-            .scroll(true)
+            .vscroll(true)
             .resizable(true)
             .default_height(300.0)
             .show(ctx, |ui| {
@@ -410,14 +413,14 @@ impl super::Demo for WindowResizeTest {
 
         Window::new("↔ resizable + embedded scroll")
             .open(open)
-            .scroll(false)
+            .vscroll(false)
             .resizable(true)
             .default_height(300.0)
             .show(ctx, |ui| {
                 ui.label("This window is resizable but has no built-in scroll area.");
                 ui.label("However, we have a sub-region with a scroll bar:");
                 ui.separator();
-                ScrollArea::auto_sized().show(ui, |ui| {
+                ScrollArea::vertical().show(ui, |ui| {
                     ui.code(crate::LOREM_IPSUM_LONG);
                     ui.code(crate::LOREM_IPSUM_LONG);
                 });
@@ -426,7 +429,7 @@ impl super::Demo for WindowResizeTest {
 
         Window::new("↔ resizable without scroll")
             .open(open)
-            .scroll(false)
+            .vscroll(false)
             .resizable(true)
             .show(ctx, |ui| {
                 ui.label("This window is resizable but has no scroll area. This means it can only be resized to a size where all the contents is visible.");
@@ -437,11 +440,22 @@ impl super::Demo for WindowResizeTest {
 
         Window::new("↔ resizable with TextEdit")
             .open(open)
-            .scroll(false)
+            .vscroll(false)
             .resizable(true)
+            .default_height(300.0)
             .show(ctx, |ui| {
                 ui.label("Shows how you can fill an area with a widget.");
                 ui.add_sized(ui.available_size(), TextEdit::multiline(&mut self.text));
+            });
+
+        Window::new("↔ freely resized")
+            .open(open)
+            .vscroll(false)
+            .resizable(true)
+            .default_size([250.0, 150.0])
+            .show(ctx, |ui| {
+                ui.label("This window has empty space that fills up the available space, preventing auto-shrink.");
+                ui.allocate_space(ui.available_size());
             });
     }
 }

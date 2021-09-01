@@ -145,6 +145,9 @@ pub struct CollapsingHeader {
     empty_icon: bool,
     id_source: Id,
     enabled: bool,
+    selectable: bool,
+    selected: bool,
+    show_background: bool,
 }
 
 impl CollapsingHeader {
@@ -163,6 +166,9 @@ impl CollapsingHeader {
             empty_icon: false,
             id_source,
             enabled: true,
+            selectable: false,
+            selected: false,
+            show_background: false,
         }
     }
 
@@ -201,6 +207,44 @@ impl CollapsingHeader {
         self.enabled = enabled;
         self
     }
+
+    /// Can the `CollapsingHeader` be selected by clicking it? Default: `false`.
+    ///
+    pub fn selectable(mut self, selectable: bool) -> Self {
+        self.selectable = selectable;
+        self
+    }
+
+    /// If you set this to 'true', the `CollapsingHeader` will be shown as selected.
+    ///
+    /// Example:
+    /// ```
+    /// # let ui = &mut egui::Ui::__test();
+    /// let mut selected = false;
+    /// let response = egui::CollapsingHeader::new("Select and open me")
+    ///     .selectable(true)
+    ///     .selected(selected)
+    ///     .show(ui, |ui| ui.label("Content"));
+    /// if response.header_response.clicked() {
+    ///     selected = true;
+    /// }
+    /// ```
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// Should the `CollapsingHeader` show a background behind it? Default: `false`.
+    ///
+    /// To show it behind all `CollapsingHeader` you can just use:
+    /// ```
+    /// # let ui = &mut egui::Ui::__test();
+    /// ui.visuals_mut().collapsing_header_frame = true;
+    /// ```
+    pub fn show_background(mut self, show_background: bool) -> Self {
+        self.show_background = show_background;
+        self
+    }
 }
 
 struct Prepared {
@@ -221,6 +265,9 @@ impl CollapsingHeader {
             id_source,
             empty_icon,
             enabled: _,
+            selectable: _,
+            selected: _,
+            show_background: _,
         } = self;
 
         label.text_style = label
@@ -233,7 +280,7 @@ impl CollapsingHeader {
         let id = ui.make_persistent_id(id_source);
         let button_padding = ui.spacing().button_padding;
 
-        let available = ui.available_rect_before_wrap_finite();
+        let available = ui.available_rect_before_wrap();
         let text_pos = available.min + vec2(ui.spacing().indent, 0.0);
         let galley = label.layout_width(ui, available.right() - text_pos.x);
         let text_max_x = text_pos.x + galley.size.x;
@@ -261,10 +308,16 @@ impl CollapsingHeader {
         header_response
             .widget_info(|| WidgetInfo::labeled(WidgetType::CollapsingHeader, &galley.text));
 
-        let visuals = ui.style().interact(&header_response);
-        let text_color = visuals.outer_text_color();
+        let visuals = ui
+            .style()
+            .interact_selectable(&header_response, self.selected);
+        let text_color = ui
+            .style()
+            .visuals
+            .override_text_color
+            .unwrap_or_else(|| visuals.outer_text_color());
 
-        if ui.visuals().collapsing_header_frame {
+        if ui.visuals().collapsing_header_frame || self.show_background {
             ui.painter().add(Shape::Rect {
                 rect: header_response.rect.expand(visuals.expansion),
                 corner_radius: visuals.corner_radius,
@@ -272,6 +325,16 @@ impl CollapsingHeader {
                 stroke: visuals.bg_stroke,
                 // stroke: Default::default(),
             });
+        }
+
+        if self.selected
+            || self.selectable && (header_response.hovered() || header_response.has_focus())
+        {
+            let rect = rect.expand(visuals.expansion);
+
+            let corner_radius = 2.0;
+            ui.painter()
+                .rect(rect, corner_radius, visuals.bg_fill, visuals.bg_stroke);
         }
 
         {

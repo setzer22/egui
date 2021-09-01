@@ -63,7 +63,13 @@ impl ComboBox {
     }
 
     /// Show the combo box, with the given ui code for the menu contents.
-    pub fn show_ui(self, ui: &mut Ui, menu_contents: impl FnOnce(&mut Ui)) -> Response {
+    ///
+    /// Returns `InnerResponse { inner: None }` if the combo box is closed.
+    pub fn show_ui<R>(
+        self,
+        ui: &mut Ui,
+        menu_contents: impl FnOnce(&mut Ui) -> R,
+    ) -> InnerResponse<Option<R>> {
         let Self {
             id_source,
             label,
@@ -77,14 +83,16 @@ impl ComboBox {
             if let Some(width) = width {
                 ui.spacing_mut().slider_width = width; // yes, this is ugly. Will remove later.
             }
-            let mut response = combo_box(ui, button_id, selected_text, menu_contents);
+            let mut ir = combo_box(ui, button_id, selected_text, menu_contents);
             if let Some(label) = label {
-                response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, label.text()));
-                response |= ui.add(label);
+                ir.response
+                    .widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, label.text()));
+                ir.response |= ui.add(label);
             } else {
-                response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, ""));
+                ir.response
+                    .widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, ""));
             }
-            response
+            ir
         })
         .inner
     }
@@ -117,14 +125,16 @@ impl ComboBox {
 
         let mut changed = false;
 
-        let mut response = slf.show_ui(ui, |ui| {
-            for i in 0..len {
-                if ui.selectable_label(i == *selected, get(i)).clicked() {
-                    *selected = i;
-                    changed = true;
+        let mut response = slf
+            .show_ui(ui, |ui| {
+                for i in 0..len {
+                    if ui.selectable_label(i == *selected, get(i)).clicked() {
+                        *selected = i;
+                        changed = true;
+                    }
                 }
-            }
-        });
+            })
+            .response;
 
         if changed {
             response.mark_changed();
@@ -133,47 +143,13 @@ impl ComboBox {
     }
 }
 
-/// A drop-down selection menu with a descriptive label.
-///
-/// Deprecated! Use [`ComboBox`] instead!
-///
-/// ```
-/// # #[derive(Debug, PartialEq)]
-/// # enum Enum { First, Second, Third }
-/// # let mut selected = Enum::First;
-/// # let mut ui = &mut egui::Ui::__test();
-/// egui::combo_box_with_label(ui, "Select one!", format!("{:?}", selected), |ui| {
-///     ui.selectable_value(&mut selected, Enum::First, "First");
-///     ui.selectable_value(&mut selected, Enum::Second, "Second");
-///     ui.selectable_value(&mut selected, Enum::Third, "Third");
-/// });
-/// ```
-#[deprecated = "Use egui::ComboBox::from_label instead"]
-pub fn combo_box_with_label(
-    ui: &mut Ui,
-    label: impl Into<Label>,
-    selected: impl ToString,
-    menu_contents: impl FnOnce(&mut Ui),
-) -> Response {
-    let label = label.into();
-    let button_id = ui.make_persistent_id(label.text());
-
-    ui.horizontal(|ui| {
-        let mut response = combo_box(ui, button_id, selected, menu_contents);
-        response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, label.text()));
-        response |= ui.add(label);
-        response
-    })
-    .inner
-}
-
 #[allow(clippy::needless_pass_by_value)]
-fn combo_box(
+fn combo_box<R>(
     ui: &mut Ui,
     button_id: Id,
     selected: impl ToString,
-    menu_contents: impl FnOnce(&mut Ui),
-) -> Response {
+    menu_contents: impl FnOnce(&mut Ui) -> R,
+) -> InnerResponse<Option<R>> {
     let popup_id = button_id.with("popup");
 
     let is_popup_open = ui.memory().is_popup_open(popup_id);
@@ -211,11 +187,16 @@ fn combo_box(
     if button_response.clicked() {
         ui.memory().toggle_popup(popup_id);
     }
-    crate::popup::popup_below_widget(ui, popup_id, &button_response, |ui| {
-        ScrollArea::from_max_height(ui.spacing().combo_height).show(ui, menu_contents)
+    let inner = crate::popup::popup_below_widget(ui, popup_id, &button_response, |ui| {
+        ScrollArea::vertical()
+            .max_height(ui.spacing().combo_height)
+            .show(ui, menu_contents)
     });
 
-    button_response
+    InnerResponse {
+        inner,
+        response: button_response,
+    }
 }
 
 fn button_frame(

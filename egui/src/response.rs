@@ -142,12 +142,23 @@ impl Response {
 
     /// `true` if there was a click *outside* this widget this frame.
     pub fn clicked_elsewhere(&self) -> bool {
-        // We do not use self.clicked(), because we want to catch all click within our frame,
-        // even if we aren't clickable. This is important for windows and such that should close
-        // then the user clicks elsewhere.
+        // We do not use self.clicked(), because we want to catch all clicks within our frame,
+        // even if we aren't clickable (or even enabled).
+        // This is important for windows and such that should close then the user clicks elsewhere.
         let pointer = &self.ctx.input().pointer;
-        if let Some(pos) = pointer.interact_pos() {
-            pointer.any_click() && !self.rect.contains(pos)
+
+        if pointer.any_click() {
+            // We detect clicks/hover on a "interact_rect" that is slightly larger than
+            // self.rect. See Context::interact.
+            // This means we can be hovered and clicked even though `!self.rect.contains(pos)` is true,
+            // hence the extra complexity here.
+            if self.hovered() {
+                false
+            } else if let Some(pos) = pointer.interact_pos() {
+                !self.rect.contains(pos)
+            } else {
+                false // clicked without a pointer, weird
+            }
         } else {
             false
         }
@@ -192,11 +203,6 @@ impl Response {
     /// ```
     pub fn lost_focus(&self) -> bool {
         self.ctx.memory().lost_focus(self.id)
-    }
-
-    #[deprecated = "Renamed to lost_focus()"]
-    pub fn lost_kb_focus(&self) -> bool {
-        self.lost_focus()
     }
 
     /// Request that this widget get keyboard focus.
@@ -299,6 +305,8 @@ impl Response {
     /// Show this UI if the widget was hovered (i.e. a tooltip).
     ///
     /// The text will not be visible if the widget is not enabled.
+    /// For that, use [`Self::on_disabled_hover_ui`] instead.
+    ///
     /// If you call this multiple times the tooltips will stack underneath the previous ones.
     pub fn on_hover_ui(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
         if self.should_show_hover_ui() {
@@ -362,6 +370,8 @@ impl Response {
     /// Show this text if the widget was hovered (i.e. a tooltip).
     ///
     /// The text will not be visible if the widget is not enabled.
+    /// For that, use [`Self::on_disabled_hover_text`] instead.
+    ///
     /// If you call this multiple times the tooltips will stack underneath the previous ones.
     pub fn on_hover_text(self, text: impl ToString) -> Self {
         self.on_hover_ui(|ui| {
@@ -374,11 +384,6 @@ impl Response {
         self.on_disabled_hover_ui(|ui| {
             ui.add(crate::widgets::Label::new(text));
         })
-    }
-
-    #[deprecated = "Deprecated 2020-10-01: use `on_hover_text` instead."]
-    pub fn tooltip_text(self, text: impl ToString) -> Self {
-        self.on_hover_text(text)
     }
 
     /// When hovered, use this icon for the mouse cursor.
@@ -417,7 +422,7 @@ impl Response {
     /// ```
     /// # use egui::Align;
     /// # let mut ui = &mut egui::Ui::__test();
-    /// egui::ScrollArea::auto_sized().show(ui, |ui| {
+    /// egui::ScrollArea::vertical().show(ui, |ui| {
     ///     for i in 0..1000 {
     ///         let response = ui.button(format!("Button {}", i));
     ///         if response.clicked() {
@@ -427,8 +432,11 @@ impl Response {
     /// });
     /// ```
     pub fn scroll_to_me(&self, align: Align) {
+        let scroll_target = lerp(self.rect.x_range(), align.to_factor());
+        self.ctx.frame_state().scroll_target[0] = Some((scroll_target, align));
+
         let scroll_target = lerp(self.rect.y_range(), align.to_factor());
-        self.ctx.frame_state().scroll_target = Some((scroll_target, align));
+        self.ctx.frame_state().scroll_target[1] = Some((scroll_target, align));
     }
 
     /// For accessibility.

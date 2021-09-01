@@ -8,10 +8,69 @@ NOTE: [`eframe`](eframe/CHANGELOG.md), [`egui_web`](egui_web/CHANGELOG.md) and [
 ## Unreleased
 
 ### Added ⭐
+* Add horizontal scrolling support to `ScrollArea` and `Window` (opt-in).
+
+### Changed 🔧
+* All `Ui`:s must now have a finite `max_rect`.
+  * Deprecated: `max_rect_finite`, `available_size_before_wrap_finite` and `available_rect_before_wrap_finite`.
+
+
+## 0.14.2 - 2021-08-28 - Window resize fix
+
+### Fixed 🐛
+* Fix window resize bug introduced in `0.14.1`.
+
+
+## 0.14.1 - 2021-08-28 - Layout bug fixes
+
+### Added ⭐
+* Add `Ui::horizontal_top`.
+
+### Fixed 🐛
+* Fix `set_width/set_min_width/set_height/set_min_height/expand_to_include_x/expand_to_include_y`.
+* Make minimum grid column width propagate properly.
+* Make sure `TextEdit` contents expand to fill width if applicable.
+* `ProgressBar`: add a minimum width and fix for having it in an infinite layout.
+* Fix sometimes not being able to click inside a combo box or popup menu.
+
+
+## 0.14.0 - 2021-08-24 - Ui panels and bug fixes
+
+### Added ⭐
+* Panels can now be added to any `Ui`.
 * Plot:
-  * [Line styles](https://github.com/emilk/egui/pull/482)
-* [Progress bar](https://github.com/emilk/egui/pull/519)
+  * [Line styles](https://github.com/emilk/egui/pull/482).
+  * Add `show_background` and `show_axes` methods to `Plot`.
+* [Progress bar](https://github.com/emilk/egui/pull/519).
 * `Grid::num_columns`: allow the last column to take up the rest of the space of the parent `Ui`.
+* Add an API for dropping files into egui (see `RawInput`).
+* `CollapsingHeader` can now optionally be selectable.
+
+### Changed 🔧
+* A single-line `TextEdit` will now clip text that doesn't fit in it, and scroll.
+* Return closure return value from `Area::show`, `ComboBox::show_ui`, `ComboBox::combo_box_with_label`, `Window::show`, `popup::*`, `menu::menu`.
+* Only move/resize windows with primary mouse button.
+* Tooltips are now moved to not cover the widget they are attached to.
+
+### Fixed 🐛
+* Fix custom font definitions getting replaced when `pixels_per_point` is changed.
+* Fix `lost_focus` for `TextEdit`.
+* Clicking the edge of a menu button will now properly open the menu.
+* Fix hover detection close to an `Area`.
+* Fix case where `Plot`'s `min_auto_bounds` could be ignored after the first call to `Plot::ui`.
+* Fix slow startup when using large font files.
+
+### Contributors 🙏
+* [barrowsys](https://github.com/barrowsys)
+* [EmbersArc](https://github.com/EmbersArc)
+* [gents83](https://github.com/gents83 )
+* [lucaspoffo](https://github.com/lucaspoffo)
+* [mankinskin](https://github.com/mankinskin)
+* [mental32](https://github.com/mental32)
+* [mitchmindtree](https://github.com/mitchmindtree)
+* [parasyte](https://github.com/parasyte)
+* [rekka](https://github.com/rekka)
+* [zu1k](https://github.com/zu1k)
 
 
 ## 0.13.1 - 2021-06-28 - Plot fixes

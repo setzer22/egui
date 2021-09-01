@@ -27,23 +27,6 @@ impl Align {
     /// Convenience for [`Self::Max`]
     pub const BOTTOM: Self = Self::Max;
 
-    #[deprecated = "Use Self::LEFT"]
-    pub fn left() -> Self {
-        Self::LEFT
-    }
-    #[deprecated = "Use Self::RIGHT"]
-    pub fn right() -> Self {
-        Self::RIGHT
-    }
-    #[deprecated = "Use Self::TOP"]
-    pub fn top() -> Self {
-        Self::TOP
-    }
-    #[deprecated = "Use Self::BOTTOM"]
-    pub fn bottom() -> Self {
-        Self::BOTTOM
-    }
-
     /// Convert `Min => 0.0`, `Center => 0.5` or `Max => 1.0`.
     #[inline(always)]
     pub fn to_factor(self) -> f32 {
@@ -61,6 +44,48 @@ impl Align {
             Self::Min => -1.0,
             Self::Center => 0.0,
             Self::Max => 1.0,
+        }
+    }
+
+    /// ``` rust
+    /// assert_eq!(emath::Align::Min.align_size_within_range(2.0, 10.0..=20.0), 10.0..=12.0);
+    /// assert_eq!(emath::Align::Center.align_size_within_range(2.0, 10.0..=20.0), 14.0..=16.0);
+    /// assert_eq!(emath::Align::Max.align_size_within_range(2.0, 10.0..=20.0), 18.0..=20.0);
+    /// assert_eq!(emath::Align::Min.align_size_within_range(f32::INFINITY, 10.0..=20.0), 10.0..=f32::INFINITY);
+    /// assert_eq!(emath::Align::Center.align_size_within_range(f32::INFINITY, 10.0..=20.0), f32::NEG_INFINITY..=f32::INFINITY);
+    /// assert_eq!(emath::Align::Max.align_size_within_range(f32::INFINITY, 10.0..=20.0), f32::NEG_INFINITY..=20.0);
+    ///
+    /// assert_eq!(emath::Align::Min.align_size_within_range(f32::INFINITY, 10.0..=f32::INFINITY), 10.0..=f32::INFINITY);
+    /// assert_eq!(emath::Align::Min.align_size_within_range(f32::INFINITY, f32::NEG_INFINITY..=10.0), f32::NEG_INFINITY..=10.0);
+    /// assert_eq!(emath::Align::Center.align_size_within_range(f32::INFINITY, 10.0..=f32::INFINITY), 10.0..=f32::INFINITY);
+    /// assert_eq!(emath::Align::Center.align_size_within_range(f32::INFINITY, f32::NEG_INFINITY..=10.0), f32::NEG_INFINITY..=10.0);
+    /// assert_eq!(emath::Align::Max.align_size_within_range(f32::INFINITY, 10.0..=f32::INFINITY), 10.0..=f32::INFINITY);
+    /// assert_eq!(emath::Align::Max.align_size_within_range(f32::INFINITY, f32::NEG_INFINITY..=10.0), f32::NEG_INFINITY..=10.0);
+    /// ```
+    #[inline]
+    pub fn align_size_within_range(
+        self,
+        size: f32,
+        range: RangeInclusive<f32>,
+    ) -> RangeInclusive<f32> {
+        let min = *range.start();
+        let max = *range.end();
+
+        if max - min == f32::INFINITY && size == f32::INFINITY {
+            return range;
+        }
+
+        match self {
+            Self::Min => min..=min + size,
+            Self::Center => {
+                if size == f32::INFINITY {
+                    f32::NEG_INFINITY..=f32::INFINITY
+                } else {
+                    let left = (min + max) / 2.0 - size / 2.0;
+                    left..=left + size
+                }
+            }
+            Self::Max => max - size..=max,
         }
     }
 }
@@ -126,18 +151,9 @@ impl Align2 {
 
     /// e.g. center a size within a given frame
     pub fn align_size_within_rect(self, size: Vec2, frame: Rect) -> Rect {
-        let x = match self.x() {
-            Align::Min => frame.left(),
-            Align::Center => frame.center().x - size.x / 2.0,
-            Align::Max => frame.right() - size.x,
-        };
-        let y = match self.y() {
-            Align::Min => frame.top(),
-            Align::Center => frame.center().y - size.y / 2.0,
-            Align::Max => frame.bottom() - size.y,
-        };
-
-        Rect::from_min_size(Pos2::new(x, y), size)
+        let x_range = self.x().align_size_within_range(size.x, frame.x_range());
+        let y_range = self.y().align_size_within_range(size.y, frame.y_range());
+        Rect::from_x_y_ranges(x_range, y_range)
     }
 
     pub fn pos_in_rect(self, frame: &Rect) -> Pos2 {
@@ -153,6 +169,22 @@ impl Align2 {
         };
 
         pos2(x, y)
+    }
+}
+
+impl std::ops::Index<usize> for Align2 {
+    type Output = Align;
+
+    #[inline(always)]
+    fn index(&self, index: usize) -> &Align {
+        &self.0[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Align2 {
+    #[inline(always)]
+    fn index_mut(&mut self, index: usize) -> &mut Align {
+        &mut self.0[index]
     }
 }
 

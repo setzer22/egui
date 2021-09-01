@@ -8,28 +8,34 @@ use crate::*;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MonoState {
     last_id: Option<Id>,
-    last_size: Option<Vec2>,
+    last_size: Vec<Vec2>,
 }
 
 impl MonoState {
-    fn tooltip_size(&self, id: Id) -> Option<Vec2> {
+    fn tooltip_size(&self, id: Id, index: usize) -> Option<Vec2> {
         if self.last_id == Some(id) {
-            self.last_size
+            self.last_size.get(index).cloned()
         } else {
             None
         }
     }
 
-    fn set_tooltip_size(&mut self, id: Id, size: Vec2) {
+    fn set_tooltip_size(&mut self, id: Id, index: usize, size: Vec2) {
         if self.last_id == Some(id) {
-            if let Some(stored_size) = &mut self.last_size {
-                *stored_size = stored_size.max(size);
-                return;
+            if let Some(stored_size) = self.last_size.get_mut(index) {
+                *stored_size = size;
+            } else {
+                self.last_size
+                    .extend((0..index - self.last_size.len()).map(|_| Vec2::ZERO));
+                self.last_size.push(size);
             }
+            return;
         }
 
         self.last_id = Some(id);
-        self.last_size = Some(size);
+        self.last_size.clear();
+        self.last_size.extend((0..index).map(|_| Vec2::ZERO));
+        self.last_size.push(size);
     }
 }
 
@@ -41,6 +47,8 @@ impl MonoState {
 ///
 /// See also [`show_tooltip_text`].
 ///
+/// Returns `None` if the tooltip could not be placed.
+///
 /// ```
 /// # let mut ui = egui::Ui::__test();
 /// if ui.ui_contains_pointer() {
@@ -49,7 +57,7 @@ impl MonoState {
 ///     });
 /// }
 /// ```
-pub fn show_tooltip(ctx: &CtxRef, id: Id, add_contents: impl FnOnce(&mut Ui)) {
+pub fn show_tooltip<R>(ctx: &CtxRef, id: Id, add_contents: impl FnOnce(&mut Ui) -> R) -> Option<R> {
     show_tooltip_at_pointer(ctx, id, add_contents)
 }
 
@@ -59,6 +67,8 @@ pub fn show_tooltip(ctx: &CtxRef, id: Id, add_contents: impl FnOnce(&mut Ui)) {
 ///
 /// See also [`show_tooltip_text`].
 ///
+/// Returns `None` if the tooltip could not be placed.
+///
 /// ```
 /// # let mut ui = egui::Ui::__test();
 /// if ui.ui_contains_pointer() {
@@ -67,7 +77,11 @@ pub fn show_tooltip(ctx: &CtxRef, id: Id, add_contents: impl FnOnce(&mut Ui)) {
 ///     });
 /// }
 /// ```
-pub fn show_tooltip_at_pointer(ctx: &CtxRef, id: Id, add_contents: impl FnOnce(&mut Ui)) {
+pub fn show_tooltip_at_pointer<R>(
+    ctx: &CtxRef,
+    id: Id,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> Option<R> {
     let suggested_pos = ctx
         .input()
         .pointer
@@ -76,52 +90,94 @@ pub fn show_tooltip_at_pointer(ctx: &CtxRef, id: Id, add_contents: impl FnOnce(&
     show_tooltip_at(ctx, id, suggested_pos, add_contents)
 }
 
-pub fn show_tooltip_under(ctx: &CtxRef, id: Id, rect: &Rect, add_contents: impl FnOnce(&mut Ui)) {
-    show_tooltip_at(
+/// Show a tooltip under the given area.
+///
+/// If the tooltip does not fit under the area, it tries to place it above it instead.
+pub fn show_tooltip_under<R>(
+    ctx: &CtxRef,
+    id: Id,
+    rect: &Rect,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> Option<R> {
+    let expanded_rect = rect.expand2(vec2(2.0, 4.0));
+    show_tooltip_at_avoid(
         ctx,
         id,
-        Some(rect.left_bottom() + vec2(-2.0, 4.0)),
+        Some(expanded_rect.left_bottom()),
+        expanded_rect,
         add_contents,
     )
 }
 
-pub fn show_tooltip_at(
+/// Show a tooltip at the given position.
+///
+/// Returns `None` if the tooltip could not be placed.
+pub fn show_tooltip_at<R>(
+    ctx: &CtxRef,
+    id: Id,
+    suggested_position: Option<Pos2>,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> Option<R> {
+    show_tooltip_at_avoid(ctx, id, suggested_position, Rect::NOTHING, add_contents)
+}
+
+fn show_tooltip_at_avoid<R>(
     ctx: &CtxRef,
     mut id: Id,
     suggested_position: Option<Pos2>,
-    add_contents: impl FnOnce(&mut Ui),
-) {
+    mut avoid_rect: Rect,
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> Option<R> {
     let mut tooltip_rect = Rect::NOTHING;
+    let mut count = 0;
 
-    let position = if let Some((stored_id, stored_tooltip_rect)) = ctx.frame_state().tooltip_rect {
+    let position = if let Some((stored_id, stored_tooltip_rect, stored_count)) =
+        ctx.frame_state().tooltip_rect
+    {
         // if there are multiple tooltips open they should use the same id for the `tooltip_size` caching to work.
         id = stored_id;
         tooltip_rect = stored_tooltip_rect;
+        count = stored_count;
+        avoid_rect = avoid_rect.union(tooltip_rect);
         tooltip_rect.left_bottom()
     } else if let Some(position) = suggested_position {
         position
     } else if ctx.memory().everything_is_visible() {
         Pos2::default()
     } else {
-        return; // No good place for a tooltip :(
+        return None; // No good place for a tooltip :(
     };
 
     let expected_size = ctx
         .memory()
         .data_temp
         .get_or_default::<crate::containers::popup::MonoState>()
-        .tooltip_size(id);
+        .tooltip_size(id, count);
     let expected_size = expected_size.unwrap_or_else(|| vec2(64.0, 32.0));
     let position = position.min(ctx.input().screen_rect().right_bottom() - expected_size);
+    // Place the tooltip above the avoid_rect if necessary.
+    let new_rect = Rect::from_min_size(position, expected_size);
+    // Note: We do not use Rect::intersects() since it returns true even if the rects only touch.
+    let position = if avoid_rect.min.x < new_rect.max.x
+        && new_rect.min.x < avoid_rect.max.x
+        && avoid_rect.min.y < new_rect.max.y
+        && new_rect.min.y < avoid_rect.max.y
+    {
+        Pos2::new(position.x, avoid_rect.min.y - expected_size.y)
+    } else {
+        position
+    };
+
     let position = position.max(ctx.input().screen_rect().left_top());
 
-    let response = show_tooltip_area(ctx, id, position, add_contents);
+    let InnerResponse { inner, response } = show_tooltip_area(ctx, id, position, add_contents);
     ctx.memory()
         .data_temp
         .get_mut_or_default::<crate::containers::popup::MonoState>()
-        .set_tooltip_size(id, response.rect.size());
+        .set_tooltip_size(id, count, response.rect.size());
 
-    ctx.frame_state().tooltip_rect = Some((id, tooltip_rect.union(response.rect)));
+    ctx.frame_state().tooltip_rect = Some((id, tooltip_rect.union(response.rect), count + 1));
+    Some(inner)
 }
 
 /// Show some text at the current pointer position (if any).
@@ -130,35 +186,39 @@ pub fn show_tooltip_at(
 ///
 /// See also [`show_tooltip`].
 ///
+/// Returns `None` if the tooltip could not be placed.
+///
 /// ```
 /// # let mut ui = egui::Ui::__test();
 /// if ui.ui_contains_pointer() {
 ///     egui::show_tooltip_text(ui.ctx(), egui::Id::new("my_tooltip"), "Helpful text");
 /// }
 /// ```
-pub fn show_tooltip_text(ctx: &CtxRef, id: Id, text: impl ToString) {
+pub fn show_tooltip_text(ctx: &CtxRef, id: Id, text: impl ToString) -> Option<()> {
     show_tooltip(ctx, id, |ui| {
         ui.add(crate::widgets::Label::new(text));
     })
 }
 
 /// Show a pop-over window.
-fn show_tooltip_area(
+fn show_tooltip_area<R>(
     ctx: &CtxRef,
     id: Id,
     window_pos: Pos2,
-    add_contents: impl FnOnce(&mut Ui),
-) -> Response {
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> InnerResponse<R> {
     use containers::*;
     Area::new(id)
         .order(Order::Tooltip)
         .fixed_pos(window_pos)
         .interactable(false)
         .show(ctx, |ui| {
-            Frame::popup(&ctx.style()).show(ui, |ui| {
-                ui.set_max_width(ui.spacing().tooltip_width);
-                add_contents(ui);
-            });
+            Frame::popup(&ctx.style())
+                .show(ui, |ui| {
+                    ui.set_max_width(ui.spacing().tooltip_width);
+                    add_contents(ui)
+                })
+                .inner
         })
 }
 
@@ -167,6 +227,8 @@ fn show_tooltip_area(
 /// Useful for drop-down menus (combo boxes) or suggestion menus under text fields.
 ///
 /// You must open the popup with [`Memory::open_popup`] or  [`Memory::toggle_popup`].
+///
+/// Returns `None` if the popup is not open.
 ///
 /// ```
 /// # let ui = &mut egui::Ui::__test();
@@ -181,32 +243,39 @@ fn show_tooltip_area(
 ///     ui.label("…");
 /// });
 /// ```
-pub fn popup_below_widget(
+pub fn popup_below_widget<R>(
     ui: &Ui,
     popup_id: Id,
     widget_response: &Response,
-    add_contents: impl FnOnce(&mut Ui),
-) {
+    add_contents: impl FnOnce(&mut Ui) -> R,
+) -> Option<R> {
     if ui.memory().is_popup_open(popup_id) {
         let parent_clip_rect = ui.clip_rect();
 
-        Area::new(popup_id)
+        let inner = Area::new(popup_id)
             .order(Order::Foreground)
             .fixed_pos(widget_response.rect.left_bottom())
             .show(ui.ctx(), |ui| {
                 ui.set_clip_rect(parent_clip_rect); // for when the combo-box is in a scroll area.
                 let frame = Frame::popup(ui.style());
                 let frame_margin = frame.margin;
-                frame.show(ui, |ui| {
-                    ui.with_layout(Layout::top_down_justified(Align::LEFT), |ui| {
-                        ui.set_width(widget_response.rect.width() - 2.0 * frame_margin.x);
-                        add_contents(ui)
-                    });
-                });
-            });
+                frame
+                    .show(ui, |ui| {
+                        ui.with_layout(Layout::top_down_justified(Align::LEFT), |ui| {
+                            ui.set_width(widget_response.rect.width() - 2.0 * frame_margin.x);
+                            add_contents(ui)
+                        })
+                        .inner
+                    })
+                    .inner
+            })
+            .inner;
 
         if ui.input().key_pressed(Key::Escape) || widget_response.clicked_elsewhere() {
             ui.memory().close_popup();
         }
+        Some(inner)
+    } else {
+        None
     }
 }

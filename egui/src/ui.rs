@@ -78,12 +78,22 @@ impl Ui {
 
     /// Create a new `Ui` at a specific region.
     pub fn child_ui(&mut self, max_rect: Rect, layout: Layout) -> Self {
+        self.child_ui_with_id_source(max_rect, layout, "child")
+    }
+
+    /// Create a new `Ui` at a specific region with a specific id.
+    pub fn child_ui_with_id_source(
+        &mut self,
+        max_rect: Rect,
+        layout: Layout,
+        id_source: impl Hash,
+    ) -> Self {
         crate::egui_assert!(!max_rect.any_nan());
         let next_auto_id_source = Id::new(self.next_auto_id_source).with("child").value();
         self.next_auto_id_source = self.next_auto_id_source.wrapping_add(1);
 
         Ui {
-            id: self.id.with("child"),
+            id: self.id.with(id_source),
             next_auto_id_source,
             painter: self.painter.clone(),
             style: self.style.clone(),
@@ -357,10 +367,9 @@ impl Ui {
         self.placer.max_rect()
     }
 
-    /// This is like `max_rect()`, but will never be infinite.
-    /// This can be useful for widgets that expand to fit the available space.
+    #[deprecated = "Use .max_rect() instead"]
     pub fn max_rect_finite(&self) -> Rect {
-        self.placer.max_rect_finite()
+        self.max_rect()
     }
 
     /// Used for animation, kind of hacky
@@ -436,6 +445,12 @@ impl Ui {
         self.set_max_width(*width.end());
     }
 
+    /// `ui.set_height_range(min..=max);` is equivalent to `ui.set_min_height(min); ui.set_max_height(max);`.
+    pub fn set_height_range(&mut self, height: std::ops::RangeInclusive<f32>) {
+        self.set_min_height(*height.start());
+        self.set_max_height(*height.end());
+    }
+
     /// Set both the minimum and maximum width.
     pub fn set_width(&mut self, width: f32) {
         self.set_min_width(width);
@@ -454,6 +469,12 @@ impl Ui {
         self.placer.expand_to_include_x(x);
     }
 
+    /// Ensure we are big enough to contain the given y-coordinate.
+    /// This is sometimes useful to expand an ui to stretch to a certain place.
+    pub fn expand_to_include_y(&mut self, y: f32) {
+        self.placer.expand_to_include_y(y);
+    }
+
     // ------------------------------------------------------------------------
     // Layout related measures:
 
@@ -470,27 +491,27 @@ impl Ui {
         self.available_size().x
     }
 
+    pub fn available_height(&self) -> f32 {
+        self.available_size().y
+    }
+
     /// In case of a wrapping layout, how much space is left on this row/column?
     pub fn available_size_before_wrap(&self) -> Vec2 {
         self.placer.available_rect_before_wrap().size()
     }
 
-    /// This is like `available_size_before_wrap()`, but will never be infinite.
-    /// This can be useful for widgets that expand to fit the available space.
-    /// In most layouts the next widget will be put in the top left corner of this `Rect`.
+    #[deprecated = "Use .available_size_before_wrap() instead"]
     pub fn available_size_before_wrap_finite(&self) -> Vec2 {
-        self.placer.available_rect_before_wrap_finite().size()
+        self.available_size_before_wrap()
     }
 
     pub fn available_rect_before_wrap(&self) -> Rect {
         self.placer.available_rect_before_wrap()
     }
 
-    /// This is like `available_rect_before_wrap()`, but will never be infinite.
-    /// This can be useful for widgets that expand to fit the available space.
-    /// In most layouts the next widget will be put in the top left corner of this `Rect`.
+    #[deprecated = "Use .available_rect_before_wrap() instead"]
     pub fn available_rect_before_wrap_finite(&self) -> Rect {
-        self.placer.available_rect_before_wrap_finite()
+        self.available_rect_before_wrap()
     }
 }
 
@@ -549,26 +570,6 @@ impl Ui {
     pub fn ui_contains_pointer(&self) -> bool {
         self.rect_contains_pointer(self.min_rect())
     }
-
-    #[deprecated = "renamed rect_contains_pointer"]
-    pub fn rect_contains_mouse(&self, rect: Rect) -> bool {
-        self.rect_contains_pointer(rect)
-    }
-
-    #[deprecated = "renamed ui_contains_pointer"]
-    pub fn ui_contains_mouse(&self) -> bool {
-        self.ui_contains_pointer()
-    }
-
-    #[deprecated = "Use: interact(rect, id, Sense::hover())"]
-    pub fn interact_hover(&self, rect: Rect) -> Response {
-        self.interact(rect, self.auto_id_with("hover_rect"), Sense::hover())
-    }
-
-    #[deprecated = "Use: rect_contains_pointer()"]
-    pub fn hovered(&self, rect: Rect) -> bool {
-        self.interact(rect, self.id, Sense::hover()).hovered
-    }
 }
 
 /// # Allocating space: where do I put my widgets?
@@ -579,7 +580,7 @@ impl Ui {
     /// ## How sizes are negotiated
     /// Each widget should have a *minimum desired size* and a *desired size*.
     /// When asking for space, ask AT LEAST for your minimum, and don't ask for more than you need.
-    /// If you want to fill the space, ask about `available().size()` and use that.
+    /// If you want to fill the space, ask about [`Ui::available_size`] and use that.
     ///
     /// You may get MORE space than you asked for, for instance
     /// for justified layouts, like in menus.
@@ -624,7 +625,7 @@ impl Ui {
     /// ## How sizes are negotiated
     /// Each widget should have a *minimum desired size* and a *desired size*.
     /// When asking for space, ask AT LEAST for your minimum, and don't ask for more than you need.
-    /// If you want to fill the space, ask about `available().size()` and use that.
+    /// If you want to fill the space, ask about [`Ui::available_size`] and use that.
     ///
     /// You may get MORE space than you asked for, for instance
     /// for justified layouts, like in menus.
@@ -690,6 +691,7 @@ impl Ui {
     fn allocate_space_impl(&mut self, desired_size: Vec2) -> Rect {
         let item_spacing = self.spacing().item_spacing;
         let frame_rect = self.placer.next_space(desired_size, item_spacing);
+        egui_assert!(!frame_rect.any_nan());
         let widget_rect = self.placer.justify_and_align(frame_rect, desired_size);
 
         self.placer
@@ -708,6 +710,7 @@ impl Ui {
     }
 
     pub(crate) fn advance_cursor_after_rect(&mut self, rect: Rect) -> Id {
+        egui_assert!(!rect.any_nan());
         let item_spacing = self.spacing().item_spacing;
         self.placer.advance_after_rects(rect, rect, item_spacing);
 
@@ -728,6 +731,10 @@ impl Ui {
 
     pub(crate) fn cursor(&self) -> Rect {
         self.placer.cursor()
+    }
+
+    pub(crate) fn set_cursor(&mut self, cursor: Rect) {
+        self.placer.set_cursor(cursor)
     }
 
     /// Where do we expect a zero-sized widget to be placed?
@@ -800,6 +807,7 @@ impl Ui {
         max_rect: Rect,
         add_contents: impl FnOnce(&mut Self) -> R,
     ) -> InnerResponse<R> {
+        egui_assert!(max_rect.is_finite());
         let mut child_ui = self.child_ui(max_rect, *self.layout());
         let ret = add_contents(&mut child_ui);
         let final_child_rect = child_ui.min_rect();
@@ -846,7 +854,7 @@ impl Ui {
     /// ```
     /// # use egui::Align;
     /// # let mut ui = &mut egui::Ui::__test();
-    /// egui::ScrollArea::auto_sized().show(ui, |ui| {
+    /// egui::ScrollArea::vertical().show(ui, |ui| {
     ///     let scroll_bottom = ui.button("Scroll to bottom.").clicked();
     ///     for i in 0..1000 {
     ///         ui.label(format!("Item {}", i));
@@ -858,8 +866,10 @@ impl Ui {
     /// });
     /// ```
     pub fn scroll_to_cursor(&mut self, align: Align) {
-        let target_y = self.next_widget_position().y;
-        self.ctx().frame_state().scroll_target = Some((target_y, align));
+        let target = self.next_widget_position();
+        for d in 0..2 {
+            self.ctx().frame_state().scroll_target[d] = Some((target[d], align));
+        }
     }
 }
 
@@ -927,11 +937,6 @@ impl Ui {
         self.placer.advance_cursor(amount);
     }
 
-    #[deprecated = "Use add_space instead"]
-    pub fn advance_cursor(&mut self, amount: f32) {
-        self.add_space(amount);
-    }
-
     /// Shortcut for `add(Label::new(text))`
     ///
     /// See also [`Label`].
@@ -993,11 +998,6 @@ impl Ui {
     /// See also [`Hyperlink`].
     pub fn hyperlink_to(&mut self, label: impl ToString, url: impl ToString) -> Response {
         Hyperlink::new(url).text(label).ui(self)
-    }
-
-    #[deprecated = "Use `text_edit_singleline` or `text_edit_multiline`"]
-    pub fn text_edit(&mut self, text: &mut String) -> Response {
-        self.text_edit_multiline(text)
     }
 
     /// No newlines (`\n`) allowed. Pressing enter key will result in the `TextEdit` losing focus (`response.lost_focus`).
@@ -1293,11 +1293,6 @@ impl Ui {
         InnerResponse::new(ret, response)
     }
 
-    #[deprecated = "Renamed scope()"]
-    pub fn wrap<R>(&mut self, add_contents: impl FnOnce(&mut Ui) -> R) -> InnerResponse<R> {
-        self.scope(add_contents)
-    }
-
     /// Redirect shapes to another paint layer.
     pub fn with_layer_id<R>(
         &mut self,
@@ -1308,15 +1303,6 @@ impl Ui {
             ui.painter.set_layer_id(layer_id);
             add_contents(ui)
         })
-    }
-
-    #[deprecated = "Use `ui.allocate_ui` instead"]
-    pub fn add_custom_contents(
-        &mut self,
-        desired_size: Vec2,
-        add_contents: impl FnOnce(&mut Ui),
-    ) -> Rect {
-        self.allocate_ui(desired_size, add_contents).response.rect
     }
 
     /// A [`CollapsingHeader`] that starts out collapsed.
@@ -1395,6 +1381,8 @@ impl Ui {
     /// Centering is almost always what you want if you are
     /// planning to to mix widgets or use different types of text.
     ///
+    /// If you don't want the contents to be centered, use [`Self::horizontal_top`] instead.
+    ///
     /// The returned `Response` will only have checked for mouse hover
     /// but can be used for tooltips (`on_hover_text`).
     /// It also contains the `Rect` used by the horizontal layout.
@@ -1411,26 +1399,20 @@ impl Ui {
         self.horizontal_with_main_wrap(false, add_contents)
     }
 
-    /// Like `horizontal`, but will set up the spacing to match that of a normal label.
-    ///
-    /// In particular, the space between widgets is the same width as the space character.
-    ///
-    /// You can still add any widgets to the layout (not only Labels).
-    #[deprecated = "Use horizontal instead and set the desired spacing manually with `ui.spacing_mut().item_spacing`"]
-    pub fn horizontal_for_text<R>(
+    /// Like [`Self::horizontal`], but aligns content with top.
+    #[inline(always)]
+    pub fn horizontal_top<R>(
         &mut self,
-        text_style: TextStyle,
         add_contents: impl FnOnce(&mut Ui) -> R,
     ) -> InnerResponse<R> {
-        self.scope(|ui| {
-            let row_height = ui.fonts().row_height(text_style);
-            let space_width = ui.fonts().glyph_width(text_style, ' ');
-            let spacing = ui.spacing_mut();
-            spacing.interact_size.y = row_height;
-            spacing.item_spacing.x = space_width;
-            spacing.item_spacing.y = 0.0;
-            ui.horizontal(add_contents).inner
-        })
+        let initial_size = self.available_size_before_wrap();
+        let layout = if self.placer.prefer_right_to_left() {
+            Layout::right_to_left()
+        } else {
+            Layout::left_to_right()
+        }
+        .with_cross_align(Align::Min);
+        self.allocate_ui_with_layout_dyn(initial_size, layout, Box::new(add_contents))
     }
 
     /// Start a ui with horizontal layout that wraps to a new row
@@ -1453,30 +1435,6 @@ impl Ui {
         self.horizontal_with_main_wrap(true, add_contents)
     }
 
-    /// Like `horizontal_wrapped`, but will set up the spacing and
-    /// line size to match that of a normal label.
-    ///
-    /// In particular, the space between widgets is the same width as the space character
-    /// and the line spacing is the same as that for text.
-    ///
-    /// You can still add any widgets to the layout (not only Labels).
-    #[deprecated = "Use horizontal_wrapped instead and set the desired spacing manually with `ui.spacing_mut().item_spacing`"]
-    pub fn horizontal_wrapped_for_text<R>(
-        &mut self,
-        text_style: TextStyle,
-        add_contents: impl FnOnce(&mut Ui) -> R,
-    ) -> InnerResponse<R> {
-        self.scope(|ui| {
-            let row_height = ui.fonts().row_height(text_style);
-            let space_width = ui.fonts().glyph_width(text_style, ' ');
-            let spacing = ui.spacing_mut();
-            spacing.interact_size.y = row_height;
-            spacing.item_spacing.x = space_width;
-            spacing.item_spacing.y = 0.0;
-            ui.horizontal_wrapped(add_contents).inner
-        })
-    }
-
     #[inline(always)]
     fn horizontal_with_main_wrap<R>(
         &mut self,
@@ -1492,7 +1450,7 @@ impl Ui {
         add_contents: Box<dyn FnOnce(&mut Ui) -> R + 'c>,
     ) -> InnerResponse<R> {
         let initial_size = vec2(
-            self.available_size_before_wrap_finite().x,
+            self.available_size_before_wrap().x,
             self.spacing().interact_size.y, // Assume there will be something interactive on the horizontal layout
         );
 
@@ -1704,7 +1662,7 @@ impl Ui {
     /// Shows the given text where the next widget is to be placed
     /// if when [`Context::set_debug_on_hover`] has been turned on and the mouse is hovering the Ui.
     pub fn trace_location(&self, text: impl ToString) {
-        let rect = self.max_rect_finite();
+        let rect = self.max_rect();
         if self.style().debug.debug_on_hover && self.rect_contains_pointer(rect) {
             self.placer
                 .debug_paint_cursor(&self.ctx().debug_painter(), text);

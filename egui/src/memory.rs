@@ -85,7 +85,7 @@ pub struct Options {
     pub(crate) style: std::sync::Arc<Style>,
 
     /// Controls the tessellator.
-    pub(crate) tessellation_options: epaint::TessellationOptions,
+    pub tessellation_options: epaint::TessellationOptions,
 
     /// This does not at all change the behavior of egui,
     /// but is a signal to any backend that we want the [`crate::Output::events`] read out loud.
@@ -291,6 +291,7 @@ impl Memory {
         self.drag_value.end_frame(input);
     }
 
+    /// Top-most layer at the given position.
     pub fn layer_id_at(&self, pos: Pos2, resize_interact_radius_side: f32) -> Option<LayerId> {
         self.areas.layer_id_at(pos, resize_interact_radius_side)
     }
@@ -435,7 +436,7 @@ impl Memory {
 #[cfg_attr(feature = "persistence", serde(default))]
 pub struct Areas {
     areas: HashMap<Id, area::State>,
-    /// Top is last
+    /// Back-to-front. Top is last.
     order: Vec<LayerId>,
     visible_last_frame: HashSet<LayerId>,
     visible_current_frame: HashSet<LayerId>,
@@ -457,6 +458,7 @@ impl Areas {
         self.areas.get(&id)
     }
 
+    /// Back-to-front. Top is last.
     pub(crate) fn order(&self) -> &[LayerId] {
         &self.order
     }
@@ -469,17 +471,18 @@ impl Areas {
         }
     }
 
+    /// Top-most layer at the given position.
     pub fn layer_id_at(&self, pos: Pos2, resize_interact_radius_side: f32) -> Option<LayerId> {
         for layer in self.order.iter().rev() {
             if self.is_visible(layer) {
                 if let Some(state) = self.areas.get(&layer.id) {
+                    let mut rect = state.rect();
                     if state.interactable {
-                        let rect = Rect::from_min_size(state.pos, state.size);
                         // Allow us to resize by dragging just outside the window:
-                        let rect = rect.expand(resize_interact_radius_side);
-                        if rect.contains(pos) {
-                            return Some(*layer);
-                        }
+                        rect = rect.expand(resize_interact_radius_side);
+                    }
+                    if rect.contains(pos) {
+                        return Some(*layer);
                     }
                 }
             }

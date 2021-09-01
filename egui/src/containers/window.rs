@@ -28,7 +28,7 @@ pub struct Window<'open> {
     area: Area,
     frame: Option<Frame>,
     resize: Resize,
-    scroll: Option<ScrollArea>,
+    scroll: ScrollArea,
     collapsible: bool,
     with_title_bar: bool,
 }
@@ -51,7 +51,7 @@ impl<'open> Window<'open> {
                 .with_stroke(false)
                 .min_size([96.0, 32.0])
                 .default_size([340.0, 420.0]), // Default inner size of a window
-            scroll: None,
+            scroll: ScrollArea::neither(),
             collapsible: true,
             with_title_bar: true,
         }
@@ -203,24 +203,31 @@ impl<'open> Window<'open> {
     /// Text will not wrap, but will instead make your window width expand.
     pub fn auto_sized(mut self) -> Self {
         self.resize = self.resize.auto_sized();
-        self.scroll = None;
+        self.scroll = ScrollArea::neither();
         self
     }
 
-    /// Enable/disable scrolling. `false` by default.
-    pub fn scroll(mut self, scroll: bool) -> Self {
-        if scroll {
-            if self.scroll.is_none() {
-                self.scroll = Some(ScrollArea::auto_sized());
-            }
-            crate::egui_assert!(
-                self.scroll.is_some(),
-                "Window::scroll called multiple times"
-            );
-        } else {
-            self.scroll = None;
-        }
+    /// Enable/disable horizontal/vertical scrolling. `false` by default.
+    pub fn scroll2(mut self, scroll: [bool; 2]) -> Self {
+        self.scroll = self.scroll.scroll2(scroll);
         self
+    }
+
+    /// Enable/disable horizontal scrolling. `false` by default.
+    pub fn hscroll(mut self, hscroll: bool) -> Self {
+        self.scroll = self.scroll.hscroll(hscroll);
+        self
+    }
+
+    /// Enable/disable vertical scrolling. `false` by default.
+    pub fn vscroll(mut self, vscroll: bool) -> Self {
+        self.scroll = self.scroll.vscroll(vscroll);
+        self
+    }
+
+    #[deprecated = "Use .vscroll(…) instead"]
+    pub fn scroll(self, scroll: bool) -> Self {
+        self.vscroll(scroll)
     }
 
     /// Constrain the area up to which the window can be dragged.
@@ -231,16 +238,21 @@ impl<'open> Window<'open> {
 }
 
 impl<'open> Window<'open> {
-    /// Returns `None` if the windows is not open (if [`Window::open`] was called with `&mut false`.
-    pub fn show(self, ctx: &CtxRef, add_contents: impl FnOnce(&mut Ui)) -> Option<Response> {
+    /// Returns `None` if the window is not open (if [`Window::open`] was called with `&mut false`).
+    /// Returns `Some(InnerResponse { inner: None })` if the window is collapsed.
+    pub fn show<R>(
+        self,
+        ctx: &CtxRef,
+        add_contents: impl FnOnce(&mut Ui) -> R,
+    ) -> Option<InnerResponse<Option<R>>> {
         self.show_impl(ctx, Box::new(add_contents))
     }
 
-    fn show_impl<'c>(
+    fn show_impl<'c, R>(
         self,
         ctx: &CtxRef,
-        add_contents: Box<dyn FnOnce(&mut Ui) + 'c>,
-    ) -> Option<Response> {
+        add_contents: Box<dyn FnOnce(&mut Ui) -> R + 'c>,
+    ) -> Option<InnerResponse<Option<R>>> {
         let Window {
             title_label,
             open,
@@ -270,7 +282,7 @@ impl<'open> Window<'open> {
             && !collapsing_header::State::is_open(ctx, collapsing_id).unwrap_or_default();
         let possible = PossibleInteractions::new(&area, &resize, is_collapsed);
 
-        let area = area.movable(false); // We move it manually
+        let area = area.movable(false); // We move it manually, or the area will move the window when we want to resize it
         let resize = resize.resizable(false); // We move it manually
         let mut resize = resize.id(resize_id);
 
@@ -296,16 +308,14 @@ impl<'open> Window<'open> {
                     0.0
                 };
                 let margins = 2.0 * frame.margin + vec2(0.0, title_bar_height);
-                let bounds = area.drag_bounds();
 
                 interact(
                     window_interaction,
                     ctx,
                     margins,
                     area_layer_id,
-                    area.state_mut(),
+                    &mut area,
                     resize_id,
-                    bounds,
                 )
             })
         } else {
@@ -315,7 +325,7 @@ impl<'open> Window<'open> {
 
         let mut area_content_ui = area.content_ui(ctx);
 
-        {
+        let content_inner = {
             // BEGIN FRAME --------------------------------
             let frame_stroke = frame.stroke;
             let mut frame = frame.begin(&mut area_content_ui);
@@ -342,21 +352,22 @@ impl<'open> Window<'open> {
                 None
             };
 
-            let content_response = collapsing
+            let (content_inner, content_response) = collapsing
                 .add_contents(&mut frame.content_ui, collapsing_id, |ui| {
                     resize.show(ui, |ui| {
                         if title_bar.is_some() {
                             ui.add_space(title_content_spacing);
                         }
 
-                        if let Some(scroll) = scroll {
-                            scroll.show(ui, add_contents);
+                        if scroll.has_any_bar() {
+                            scroll.show(ui, add_contents)
                         } else {
-                            add_contents(ui);
+                            add_contents(ui)
                         }
                     })
                 })
-                .map(|ir| ir.response);
+                .map(|ir| (Some(ir.inner), Some(ir.response)))
+                .unwrap_or((None, None));
 
             let outer_rect = frame.end(&mut area_content_ui).rect;
             paint_resize_corner(&mut area_content_ui, &possible, outer_rect, frame_stroke);
@@ -396,10 +407,20 @@ impl<'open> Window<'open> {
                     );
                 }
             }
-        }
+            content_inner
+        };
+
+        area.state_mut().pos = ctx
+            .constrain_window_rect_to_area(area.state().rect(), area.drag_bounds())
+            .min;
+
         let full_response = area.end(ctx, area_content_ui);
 
-        Some(full_response)
+        let inner_response = InnerResponse {
+            inner: content_inner,
+            response: full_response,
+        };
+        Some(inner_response)
     }
 }
 
@@ -492,21 +513,16 @@ fn interact(
     ctx: &Context,
     margins: Vec2,
     area_layer_id: LayerId,
-    area_state: &mut area::State,
+    area: &mut area::Prepared,
     resize_id: Id,
-    drag_bounds: Option<Rect>,
 ) -> Option<WindowInteraction> {
     let new_rect = move_and_resize_window(ctx, &window_interaction)?;
     let new_rect = ctx.round_rect_to_pixels(new_rect);
 
-    let new_rect = if let Some(bounds) = drag_bounds {
-        ctx.constrain_window_rect_to_area(new_rect, bounds)
-    } else {
-        ctx.constrain_window_rect(new_rect)
-    };
+    let new_rect = ctx.constrain_window_rect_to_area(new_rect, area.drag_bounds());
 
     // TODO: add this to a Window state instead as a command "move here next frame"
-    area_state.pos = new_rect.min;
+    area.state_mut().pos = new_rect.min;
 
     if window_interaction.is_resize() {
         ctx.memory()
@@ -522,6 +538,12 @@ fn interact(
 
 fn move_and_resize_window(ctx: &Context, window_interaction: &WindowInteraction) -> Option<Rect> {
     window_interaction.set_cursor(ctx);
+
+    // Only move/resize windows with primary mouse button:
+    if !ctx.input().pointer.primary_down() {
+        return None;
+    }
+
     let pointer_pos = ctx.input().pointer.interact_pos()?;
     let mut rect = window_interaction.start_rect; // prevent drift
 
@@ -575,7 +597,7 @@ fn window_interaction(
     if window_interaction.is_none() {
         if let Some(hover_window_interaction) = resize_hover(ctx, possible, area_layer_id, rect) {
             hover_window_interaction.set_cursor(ctx);
-            if ctx.input().pointer.any_pressed() && ctx.input().pointer.any_down() {
+            if ctx.input().pointer.any_pressed() && ctx.input().pointer.primary_down() {
                 ctx.memory().interaction.drag_id = Some(id);
                 ctx.memory().interaction.drag_is_window = true;
                 window_interaction = Some(hover_window_interaction);

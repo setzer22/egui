@@ -159,6 +159,8 @@ impl CtxRef {
         enabled: bool,
     ) -> Response {
         let gap = 0.5; // Just to make sure we don't accidentally hover two things at once (a small eps should be sufficient).
+
+        // Make it easier to click things:
         let interact_rect = rect.expand2(
             (0.5 * item_spacing - Vec2::splat(gap))
                 .at_least(Vec2::splat(0.0))
@@ -360,12 +362,6 @@ impl Clone for Context {
 }
 
 impl Context {
-    #[allow(clippy::new_ret_no_self)]
-    #[deprecated = "Use CtxRef::default() instead"]
-    pub fn new() -> CtxRef {
-        CtxRef::default()
-    }
-
     /// How much space is still available after panels has been added.
     /// This is the "background" area, what egui doesn't cover with panels (but may cover with windows).
     /// This is also the area to which windows are constrained.
@@ -513,15 +509,12 @@ impl Context {
 
     // ---------------------------------------------------------------------
 
-    /// Constrain the position of a window/area
-    /// so it fits within the screen.
-    pub(crate) fn constrain_window_rect(&self, window: Rect) -> Rect {
-        self.constrain_window_rect_to_area(window, self.available_rect())
-    }
+    /// Constrain the position of a window/area so it fits within the provided boundary.
+    ///
+    /// If area is `None`, will constrain to [`Self::available_rect`].
+    pub(crate) fn constrain_window_rect_to_area(&self, window: Rect, area: Option<Rect>) -> Rect {
+        let mut area = area.unwrap_or_else(|| self.available_rect());
 
-    /// Constrain the position of a window/area
-    /// so it fits within the provided boundary.
-    pub(crate) fn constrain_window_rect_to_area(&self, window: Rect, mut area: Rect) -> Rect {
         if window.width() > area.width() {
             // Allow overlapping side bars.
             // This is important for small screens, e.g. mobiles running the web demo.
@@ -578,7 +571,12 @@ impl Context {
             if self.fonts.is_none() || new_font_definitions.is_some() || pixels_per_point_changed {
                 self.fonts = Some(Arc::new(Fonts::from_definitions(
                     pixels_per_point,
-                    new_font_definitions.unwrap_or_default(),
+                    new_font_definitions.unwrap_or_else(|| {
+                        self.fonts
+                            .as_ref()
+                            .map(|font| font.definitions().clone())
+                            .unwrap_or_default()
+                    }),
                 )));
             }
         }
@@ -690,16 +688,6 @@ impl Context {
         self.memory().interaction.is_using_pointer()
     }
 
-    #[deprecated = "Renamed wants_pointer_input"]
-    pub fn wants_mouse_input(&self) -> bool {
-        self.wants_pointer_input()
-    }
-
-    #[deprecated = "Renamed is_using_pointer"]
-    pub fn is_using_mouse(&self) -> bool {
-        self.is_using_pointer()
-    }
-
     /// If `true`, egui is currently listening on text input (e.g. typing text in a [`TextEdit`]).
     pub fn wants_keyboard_input(&self) -> bool {
         self.memory().interaction.focus.focused().is_some()
@@ -715,6 +703,7 @@ impl Context {
         }
     }
 
+    /// Top-most layer at the given position.
     pub fn layer_id_at(&self, pos: Pos2) -> Option<LayerId> {
         let resize_grab_radius_side = self.style().interaction.resize_grab_radius_side;
         self.memory().layer_id_at(pos, resize_grab_radius_side)
@@ -816,7 +805,7 @@ impl Context {
         ))
         .on_hover_text("Is egui currently listening for text input?");
         ui.label(format!(
-            "keyboard focus widget: {}",
+            "Keyboard focus widget: {}",
             self.memory()
                 .interaction
                 .focus
@@ -826,6 +815,22 @@ impl Context {
                 .unwrap_or_default()
         ))
         .on_hover_text("Is egui currently listening for text input?");
+
+        let pointer_pos = self
+            .input()
+            .pointer
+            .hover_pos()
+            .map_or_else(String::new, |pos| format!("{:?}", pos));
+        ui.label(format!("Pointer pos: {}", pointer_pos));
+
+        let top_layer = self
+            .input()
+            .pointer
+            .hover_pos()
+            .and_then(|pos| self.layer_id_at(pos))
+            .map_or_else(String::new, |layer| layer.short_debug_format());
+        ui.label(format!("Top layer under mouse: {}", top_layer));
+
         ui.add_space(16.0);
 
         ui.label(format!(
@@ -857,7 +862,7 @@ impl Context {
 
         ui.horizontal(|ui| {
             ui.label(format!(
-                "{} areas (window positions)",
+                "{} areas (panels, windows, popups, …)",
                 self.memory().areas.count()
             ));
             if ui.button("Reset").clicked() {
@@ -865,18 +870,20 @@ impl Context {
             }
         });
         ui.indent("areas", |ui| {
+            ui.label("Visible areas, ordered back to front.");
+            ui.label("Hover to highlight");
             let layers_ids: Vec<LayerId> = self.memory().areas.order().to_vec();
             for layer_id in layers_ids {
                 let area = self.memory().areas.get(layer_id.id).cloned();
                 if let Some(area) = area {
                     let is_visible = self.memory().areas.is_visible(&layer_id);
+                    if !is_visible {
+                        continue;
+                    }
+                    let text = format!("{} - {:?}", layer_id.short_debug_format(), area.rect(),);
+                    // TODO: `Sense::hover_highlight()`
                     if ui
-                        .label(format!(
-                            "{:?} {:?} {}",
-                            layer_id.order,
-                            area.rect(),
-                            if is_visible { "" } else { "(INVISIBLE)" }
-                        ))
+                        .add(Label::new(text).monospace().sense(Sense::click()))
                         .hovered
                         && is_visible
                     {

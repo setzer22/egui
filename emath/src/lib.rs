@@ -64,7 +64,6 @@
     clippy::option_option,
     clippy::path_buf_push_overwrite,
     clippy::ptr_as_ptr,
-    clippy::pub_enum_variant_names,
     clippy::ref_option_ref,
     clippy::rest_pat_in_fully_bound_structs,
     clippy::same_functions_in_if_condition,
@@ -79,7 +78,6 @@
     clippy::unused_self,
     clippy::useless_transmute,
     clippy::verbose_file_reads,
-    clippy::wrong_pub_self_convention,
     clippy::zero_sized_map_values,
     future_incompatible,
     nonstandard_style,
@@ -191,24 +189,6 @@ where
         } else {
             lerp(to, t)
         }
-    }
-}
-
-/// Returns `range.start()` if `x <= range.start()`,
-/// returns `range.end()` if `x >= range.end()`
-/// and returns `x` elsewhen.
-#[deprecated = "Use f32::clamp instead"]
-pub fn clamp<T>(x: T, range: RangeInclusive<T>) -> T
-where
-    T: Copy + PartialOrd,
-{
-    crate::emath_assert!(range.start() <= range.end());
-    if x <= *range.start() {
-        *range.start()
-    } else if *range.end() <= x {
-        *range.end()
-    } else {
-        x
     }
 }
 

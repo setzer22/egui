@@ -5,13 +5,17 @@ All notable changes to the `eframe` crate.
 ## Unreleased
 
 
-## 0.13.1 - 2021-06-24
+## 0.14.0 - 2021-08-24
+* Add dragging and dropping files into egui.
+* Improve http fetch API.
+* `run_native` now returns when the app is closed.
 
+
+## 0.13.1 - 2021-06-24
 * Fix `http` feature flag and docs
 
 
 ## 0.13.0 - 2021-06-24
-
 * `App::setup` now takes a `Frame` and `Storage` by argument.
 * `App::load` has been removed. Implement `App::setup` instead.
 

@@ -61,7 +61,6 @@
     clippy::option_option,
     clippy::path_buf_push_overwrite,
     clippy::ptr_as_ptr,
-    clippy::pub_enum_variant_names,
     clippy::ref_option_ref,
     clippy::rest_pat_in_fully_bound_structs,
     clippy::same_functions_in_if_condition,
@@ -76,7 +75,6 @@
     clippy::unused_self,
     clippy::useless_transmute,
     clippy::verbose_file_reads,
-    clippy::wrong_pub_self_convention,
     clippy::zero_sized_map_values,
     future_incompatible,
     nonstandard_style,
@@ -165,12 +163,15 @@ pub struct NativeOptions {
     /// Sets whether or not the window will always be on top of other windows.
     pub always_on_top: bool,
 
+    /// Show window in maximized mode
+    pub maximized: bool,
+
     /// On desktop: add window decorations (i.e. a frame around your app)?
     /// If false it will be difficult to move and resize the app.
     pub decorated: bool,
 
     /// On Windows: enable drag and drop support.
-    /// Set to false to avoid issues with crates such as cpal which
+    /// Default is `false` to avoid issues with crates such as cpal which
     /// uses that use multi-threaded COM API <https://github.com/rust-windowing/winit/pull/1524>
     pub drag_and_drop_support: bool,
 
@@ -193,8 +194,9 @@ impl Default for NativeOptions {
     fn default() -> Self {
         Self {
             always_on_top: false,
+            maximized: false,
             decorated: true,
-            drag_and_drop_support: true,
+            drag_and_drop_support: false,
             icon_data: None,
             initial_window_size: None,
             resizable: true,
@@ -239,7 +241,7 @@ impl<'a> Frame<'a> {
     }
 
     /// Signal the app to stop/exit/quit the app (only works for native apps, not web apps).
-    /// The framework will NOT quick immediately, but at the end of the this frame.
+    /// The framework will not quit immediately, but at the end of the this frame.
     pub fn quit(&mut self) {
         self.0.output.quit = true;
     }
@@ -377,34 +379,50 @@ pub const APP_KEY: &str = "app";
 ///
 /// You must enable the "http" feature for this.
 pub mod http {
-    /// A simple http requests.
+    use std::collections::BTreeMap;
+
+    /// A simple http request.
     pub struct Request {
         /// "GET", …
         pub method: String,
         /// https://…
         pub url: String,
-        /// x-www-form-urlencoded body
-        pub body: String,
+        /// The raw bytes.
+        pub body: Vec<u8>,
+        /// ("Accept", "*/*"), …
+        pub headers: BTreeMap<String, String>,
     }
 
     impl Request {
-        /// Create a `GET` requests with the given url.
+        pub fn create_headers_map(headers: &[(&str, &str)]) -> BTreeMap<String, String> {
+            headers
+                .iter()
+                .map(|e| (e.0.to_owned(), e.1.to_owned()))
+                .collect()
+        }
+
+        /// Create a `GET` request with the given url.
         #[allow(clippy::needless_pass_by_value)]
         pub fn get(url: impl ToString) -> Self {
             Self {
                 method: "GET".to_owned(),
                 url: url.to_string(),
-                body: "".to_string(),
+                body: vec![],
+                headers: Request::create_headers_map(&[("Accept", "*/*")]),
             }
         }
 
-        /// Create a `POST` requests with the give url and body.
+        /// Create a `POST` request with the given url and body.
         #[allow(clippy::needless_pass_by_value)]
         pub fn post(url: impl ToString, body: impl ToString) -> Self {
             Self {
                 method: "POST".to_owned(),
                 url: url.to_string(),
-                body: body.to_string(),
+                body: body.to_string().into_bytes(),
+                headers: Request::create_headers_map(&[
+                    ("Accept", "*/*"),
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                ]),
             }
         }
     }
@@ -419,18 +437,21 @@ pub mod http {
         pub status: u16,
         /// Status text (e.g. "File not found" for status code `404`).
         pub status_text: String,
-
-        /// Content-Type header, or empty string if missing.
-        pub header_content_type: String,
-
         /// The raw bytes.
         pub bytes: Vec<u8>,
 
-        /// UTF-8 decoded version of bytes.
-        /// ONLY if `header_content_type` starts with "text" and bytes is UTF-8.
-        pub text: Option<String>,
+        pub headers: BTreeMap<String, String>,
     }
 
+    impl Response {
+        pub fn text(&self) -> Option<String> {
+            String::from_utf8(self.bytes.clone()).ok()
+        }
+
+        pub fn content_type(&self) -> Option<String> {
+            self.headers.get("content-type").cloned()
+        }
+    }
     /// Possible errors does NOT include e.g. 404, which is NOT considered an error.
     pub type Error = String;
 }

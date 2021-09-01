@@ -67,7 +67,7 @@ impl GridLayout {
         // TODO: respect current layout
 
         let initial_available = ui.placer().max_rect().intersect(ui.cursor());
-        assert!(
+        crate::egui_assert!(
             initial_available.min.x.is_finite(),
             "Grid not yet available for right-to-left layouts"
         );
@@ -109,11 +109,6 @@ impl GridLayout {
     }
 
     pub(crate) fn available_rect(&self, region: &Region) -> Rect {
-        // required for putting CollapsingHeader in anything but the last column:
-        self.available_rect_finite(region)
-    }
-
-    pub(crate) fn available_rect_finite(&self, region: &Region) -> Rect {
         let is_last_column = Some(self.col + 1) == self.num_columns;
 
         let width = if is_last_column {
@@ -130,9 +125,12 @@ impl GridLayout {
                 .unwrap_or(self.min_cell_size.x)
         };
 
+        // If something above was wider, we can be wider:
+        let width = width.max(self.curr_state.col_width(self.col).unwrap_or(0.0));
+
         let available = region.max_rect.intersect(region.cursor);
 
-        let height = region.max_rect_finite().max.y - available.top();
+        let height = region.max_rect.max.y - available.top();
         let height = height
             .at_least(self.min_cell_size.y)
             .at_most(self.max_cell_size.y);
@@ -181,11 +179,9 @@ impl GridLayout {
         }
 
         self.curr_state
-            .set_min_col_width(self.col, widget_rect.width().at_least(self.min_cell_size.x));
-        self.curr_state.set_min_row_height(
-            self.row,
-            widget_rect.height().at_least(self.min_cell_size.y),
-        );
+            .set_min_col_width(self.col, widget_rect.width().max(self.min_cell_size.x));
+        self.curr_state
+            .set_min_row_height(self.row, widget_rect.height().max(self.min_cell_size.y));
 
         cursor.min.x += self.prev_col_width(self.col) + self.spacing.x;
         self.col += 1;
@@ -350,7 +346,8 @@ impl Grid {
         // If somebody wants to wrap more things inside a cell,
         // then we should pick a default layout that matches that alignment,
         // which we do here:
-        ui.allocate_ui_at_rect(ui.cursor(), |ui| {
+        let max_rect = ui.cursor().intersect(ui.max_rect());
+        ui.allocate_ui_at_rect(max_rect, |ui| {
             ui.horizontal(|ui| {
                 let id = ui.make_persistent_id(id_source);
                 let grid = GridLayout {
