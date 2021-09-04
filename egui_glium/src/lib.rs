@@ -19,6 +19,8 @@
 #![allow(clippy::manual_range_contains, clippy::single_match)]
 
 mod backend;
+#[cfg(feature = "http")]
+pub mod http;
 mod painter;
 #[cfg(feature = "persistence")]
 pub mod persistence;
@@ -629,10 +631,10 @@ impl EguiGlium {
         (needs_repaint, shapes)
     }
 
-    pub fn paint<T: glium::Surface>(
+    pub fn paint(
         &mut self,
         display: &glium::Display,
-        target: &mut T,
+        target: &mut glium::Frame,
         shapes: Vec<egui::epaint::ClippedShape>,
     ) {
         let clipped_meshes = self.egui_ctx.tessellate(shapes);

@@ -12,6 +12,7 @@ use {
         texture::{self, srgb_texture2d::SrgbTexture2d},
         uniform,
         uniforms::{MagnifySamplerFilter, SamplerWrapFunction},
+        Frame, Surface,
     },
 };
 
@@ -94,10 +95,10 @@ impl Painter {
     /// Main entry-point for painting a frame.
     /// You should call `target.clear_color(..)` before
     /// and `target.finish()` after this.
-    pub fn paint_meshes<T: glium::Surface>(
+    pub fn paint_meshes(
         &mut self,
         display: &glium::Display,
-        target: &mut T,
+        target: &mut Frame,
         pixels_per_point: f32,
         cipped_meshes: Vec<egui::ClippedMesh>,
         egui_texture: &egui::Texture,
@@ -111,9 +112,9 @@ impl Painter {
     }
 
     #[inline(never)] // Easier profiling
-    pub fn paint_mesh<T: glium::Surface>(
+    pub fn paint_mesh(
         &mut self,
-        target: &mut T,
+        target: &mut Frame,
         display: &glium::Display,
         pixels_per_point: f32,
         clip_rect: Rect,

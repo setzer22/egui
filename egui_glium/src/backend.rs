@@ -177,6 +177,9 @@ pub fn run(mut app: Box<dyn epi::App>, native_options: epi::NativeOptions) {
     #[allow(unused_mut)]
     let mut storage = create_storage(app.name());
 
+    #[cfg(feature = "http")]
+    let http = std::sync::Arc::new(crate::http::GliumHttp {});
+
     let window_settings = deserialize_window_settings(&storage);
     let mut event_loop = glutin::event_loop::EventLoop::with_user_event();
     let icon = native_options.icon_data.clone().and_then(load_icon);
@@ -195,6 +198,8 @@ pub fn run(mut app: Box<dyn epi::App>, native_options: epi::NativeOptions) {
         let mut frame = epi::backend::FrameBuilder {
             info: integration_info(&display, None),
             tex_allocator: painter,
+            #[cfg(feature = "http")]
+            http: http.clone(),
             output: &mut app_output,
             repaint_signal: repaint_signal.clone(),
         }
@@ -217,6 +222,8 @@ pub fn run(mut app: Box<dyn epi::App>, native_options: epi::NativeOptions) {
         let mut frame = epi::backend::FrameBuilder {
             info: integration_info(&display, None),
             tex_allocator: painter,
+            #[cfg(feature = "http")]
+            http: http.clone(),
             output: &mut app_output,
             repaint_signal: repaint_signal.clone(),
         }
@@ -312,6 +319,8 @@ pub fn run(mut app: Box<dyn epi::App>, native_options: epi::NativeOptions) {
             let mut frame = epi::backend::FrameBuilder {
                 info: integration_info(&display, previous_frame_time),
                 tex_allocator: painter,
+                #[cfg(feature = "http")]
+                http: http.clone(),
                 output: &mut app_output,
                 repaint_signal: repaint_signal.clone(),
             }

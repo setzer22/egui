@@ -377,10 +377,6 @@ pub use {
     widgets::*,
 };
 
-pub mod text {
-    pub use epaint::text::{Galley, LayoutJob, LayoutSection, TextFormat, TAB_SIZE};
-}
-
 // ----------------------------------------------------------------------------
 
 /// Helper function that adds a label when compiling with debug assertions enabled.

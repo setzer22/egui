@@ -16,7 +16,6 @@ struct Demos {
 impl Default for Demos {
     fn default() -> Self {
         Self::from_demos(vec![
-            Box::new(super::code_editor::CodeEditor::default()),
             Box::new(super::dancing_strings::DancingStrings::default()),
             Box::new(super::drag_and_drop::DragAndDropDemo::default()),
             Box::new(super::font_book::FontBook::default()),

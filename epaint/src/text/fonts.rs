@@ -4,11 +4,13 @@ use std::{
     sync::Arc,
 };
 
+use ahash::AHashMap;
+
 use crate::{
     mutex::Mutex,
     text::{
         font::{Font, FontImpl},
-        Galley, LayoutJob,
+        Galley,
     },
     Texture, TextureAtlas,
 };
@@ -317,58 +319,69 @@ impl Fonts {
         self.fonts[&text_style].row_height()
     }
 
-    /// Layout some text.
-    /// This is the most advanced layout function.
-    /// See also [`Self::layout`], [`Self::layout_no_wrap`] and
-    /// [`Self::layout_delayed_color`].
+    /// Will line break at `\n`.
     ///
-    /// The implementation uses memoization so repeated calls are cheap.
-    pub fn layout_job(&self, job: LayoutJob) -> Arc<Galley> {
-        self.galley_cache.lock().layout(self, job)
+    /// Always returns at least one row.
+    pub fn layout_no_wrap(&self, text_style: TextStyle, text: String) -> Arc<Galley> {
+        self.layout_multiline(text_style, text, f32::INFINITY)
+    }
+
+    /// Typeset the given text onto one row.
+    /// Any `\n` will show up as the replacement character.
+    /// Always returns exactly one `Row` in the `Galley`.
+    ///
+    /// Most often you probably want `\n` to produce a new row,
+    /// and so [`Self::layout_no_wrap`] may be a better choice.
+    pub fn layout_single_line(&self, text_style: TextStyle, text: String) -> Arc<Galley> {
+        self.galley_cache.lock().layout(
+            &self.fonts,
+            LayoutJob {
+                text_style,
+                text,
+                layout_params: LayoutParams::SingleLine,
+            },
+        )
     }
 
     /// Will wrap text at the given width and line break at `\n`.
     ///
-    /// The implementation uses memoization so repeated calls are cheap.
-    pub fn layout(
+    /// Always returns at least one row.
+    pub fn layout_multiline(
         &self,
-        text: String,
         text_style: TextStyle,
-        color: crate::Color32,
-        wrap_width: f32,
-    ) -> Arc<Galley> {
-        let job = LayoutJob::simple(text, text_style, color, wrap_width);
-        self.layout_job(job)
-    }
-
-    /// Will line break at `\n`.
-    ///
-    /// The implementation uses memoization so repeated calls are cheap.
-    pub fn layout_no_wrap(
-        &self,
         text: String,
-        text_style: TextStyle,
-        color: crate::Color32,
+        max_width_in_points: f32,
     ) -> Arc<Galley> {
-        let job = LayoutJob::simple(text, text_style, color, f32::INFINITY);
-        self.layout_job(job)
-    }
-
-    /// Like [`Self::layout`], made for when you want to pick a color for the text later.
-    ///
-    /// The implementation uses memoization so repeated calls are cheap.
-    pub fn layout_delayed_color(
-        &self,
-        text: String,
-        text_style: TextStyle,
-        wrap_width: f32,
-    ) -> Arc<Galley> {
-        self.layout_job(LayoutJob::simple(
-            text,
+        self.layout_multiline_with_indentation_and_max_width(
             text_style,
-            crate::Color32::TEMPORARY_COLOR,
-            wrap_width,
-        ))
+            text,
+            0.0,
+            max_width_in_points,
+        )
+    }
+
+    /// * `first_row_indentation`: extra space before the very first character (in points).
+    /// * `max_width_in_points`: wrapping width.
+    ///
+    /// Always returns at least one row.
+    pub fn layout_multiline_with_indentation_and_max_width(
+        &self,
+        text_style: TextStyle,
+        text: String,
+        first_row_indentation: f32,
+        max_width_in_points: f32,
+    ) -> Arc<Galley> {
+        self.galley_cache.lock().layout(
+            &self.fonts,
+            LayoutJob {
+                text_style,
+                text,
+                layout_params: LayoutParams::Multiline {
+                    first_row_indentation: first_row_indentation.into(),
+                    max_width_in_points: max_width_in_points.into(),
+                },
+            },
+        )
     }
 
     pub fn num_galleys_in_cache(&self) -> usize {
@@ -377,7 +390,7 @@ impl Fonts {
 
     /// Must be called once per frame to clear the [`Galley`] cache.
     pub fn end_frame(&self) {
-        self.galley_cache.lock().end_frame();
+        self.galley_cache.lock().end_frame()
     }
 }
 
@@ -392,6 +405,22 @@ impl std::ops::Index<TextStyle> for Fonts {
 
 // ----------------------------------------------------------------------------
 
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+enum LayoutParams {
+    SingleLine,
+    Multiline {
+        first_row_indentation: ordered_float::OrderedFloat<f32>,
+        max_width_in_points: ordered_float::OrderedFloat<f32>,
+    },
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
+struct LayoutJob {
+    text_style: TextStyle,
+    layout_params: LayoutParams,
+    text: String,
+}
+
 struct CachedGalley {
     /// When it was last used
     last_used: u32,
@@ -402,32 +431,41 @@ struct CachedGalley {
 struct GalleyCache {
     /// Frame counter used to do garbage collection on the cache
     generation: u32,
-    cache: nohash_hasher::IntMap<u64, CachedGalley>,
+    cache: AHashMap<LayoutJob, CachedGalley>,
 }
 
 impl GalleyCache {
-    fn layout(&mut self, fonts: &Fonts, job: LayoutJob) -> Arc<Galley> {
-        let hash = {
-            let mut hasher = ahash::AHasher::new_with_keys(123, 456); // TODO: even faster hasher?
-            job.hash(&mut hasher);
-            hasher.finish()
-        };
-
-        match self.cache.entry(hash) {
-            std::collections::hash_map::Entry::Occupied(entry) => {
-                let cached = entry.into_mut();
-                cached.last_used = self.generation;
-                cached.galley.clone()
-            }
-            std::collections::hash_map::Entry::Vacant(entry) => {
-                let galley = super::layout(fonts, job.into());
-                let galley = Arc::new(galley);
-                entry.insert(CachedGalley {
+    fn layout(&mut self, fonts: &BTreeMap<TextStyle, Font>, job: LayoutJob) -> Arc<Galley> {
+        if let Some(cached) = self.cache.get_mut(&job) {
+            cached.last_used = self.generation;
+            cached.galley.clone()
+        } else {
+            let LayoutJob {
+                text_style,
+                layout_params,
+                text,
+            } = job.clone();
+            let font = &fonts[&text_style];
+            let galley = match layout_params {
+                LayoutParams::SingleLine => font.layout_single_line(text),
+                LayoutParams::Multiline {
+                    first_row_indentation,
+                    max_width_in_points,
+                } => font.layout_multiline_with_indentation_and_max_width(
+                    text,
+                    first_row_indentation.into_inner(),
+                    max_width_in_points.into_inner(),
+                ),
+            };
+            let galley = Arc::new(galley);
+            self.cache.insert(
+                job,
+                CachedGalley {
                     last_used: self.generation,
                     galley: galley.clone(),
-                });
-                galley
-            }
+                },
+            );
+            galley
         }
     }
 

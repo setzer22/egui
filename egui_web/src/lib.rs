@@ -22,6 +22,8 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 pub mod backend;
+#[cfg(feature = "http")]
+pub mod http;
 mod painter;
 pub mod screen_reader;
 pub mod webgl1;

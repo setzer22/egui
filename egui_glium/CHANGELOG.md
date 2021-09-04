@@ -4,7 +4,6 @@ All notable changes to the `egui_glium` integration will be noted in this file.
 
 
 ## Unreleased
-* Remove "http" feature (use https://github.com/emilk/ehttp instead!).
 
 
 ## 0.14.0 - 2021-08-24

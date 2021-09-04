@@ -3,7 +3,6 @@ All notable changes to the `eframe` crate.
 
 
 ## Unreleased
-* Remove "http" feature (use https://github.com/emilk/ehttp instead!).
 
 
 ## 0.14.0 - 2021-08-24

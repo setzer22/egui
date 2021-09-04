@@ -43,18 +43,12 @@ pub enum Shape {
     Text {
         /// Top left corner of the first character..
         pos: Pos2,
-
         /// The layed out text.
         galley: std::sync::Arc<Galley>,
-
-        /// Add this underline to the whole text.
-        /// You can also set an underline when creating the galley.
-        underline: Stroke,
-
-        /// If set, the text color in the galley will be ignored and replaced
-        /// with the given color.
-        /// This will NOT replace background color nor strikethrough/underline color.
-        override_text_color: Option<Color32>,
+        /// Text color (foreground).
+        color: Color32,
+        /// If true, tilt the letters for a hacky italics effect.
+        fake_italics: bool,
     },
     Mesh(Mesh),
 }
@@ -175,17 +169,13 @@ impl Shape {
         text_style: TextStyle,
         color: Color32,
     ) -> Self {
-        let galley = fonts.layout_no_wrap(text.to_string(), text_style, color);
+        let galley = fonts.layout_multiline(text_style, text.to_string(), f32::INFINITY);
         let rect = anchor.anchor_rect(Rect::from_min_size(pos, galley.size));
-        Self::galley(rect.min, galley)
-    }
-
-    pub fn galley(pos: Pos2, galley: std::sync::Arc<Galley>) -> Self {
         Self::Text {
-            pos,
+            pos: rect.min,
             galley,
-            override_text_color: None,
-            underline: Stroke::none(),
+            color,
+            fake_italics: false,
         }
     }
 }

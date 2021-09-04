@@ -3,16 +3,14 @@
 pub mod cursor;
 mod font;
 mod fonts;
-mod text_layout;
-mod text_layout_types;
+mod galley;
 
 /// One `\t` character is this many spaces wide.
 pub const TAB_SIZE: usize = 4;
 
 pub use {
     fonts::{FontDefinitions, FontFamily, Fonts, TextStyle},
-    text_layout::layout,
-    text_layout_types::*,
+    galley::{Galley, Row},
 };
 
 /// Suggested character to use to replace those in password text fields.
