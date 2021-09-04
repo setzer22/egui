@@ -282,7 +282,8 @@ impl CollapsingHeader {
 
         let available = ui.available_rect_before_wrap();
         let text_pos = available.min + vec2(ui.spacing().indent, 0.0);
-        let galley = label.layout_width(ui, available.right() - text_pos.x);
+        let galley =
+            label.layout_width(ui, available.right() - text_pos.x, Color32::TEMPORARY_COLOR);
         let text_max_x = text_pos.x + galley.size.x;
 
         let mut desired_width = text_max_x + button_padding.x - available.left();
@@ -306,7 +307,7 @@ impl CollapsingHeader {
             header_response.mark_changed();
         }
         header_response
-            .widget_info(|| WidgetInfo::labeled(WidgetType::CollapsingHeader, &galley.text));
+            .widget_info(|| WidgetInfo::labeled(WidgetType::CollapsingHeader, galley.text()));
 
         let visuals = ui
             .style()
@@ -351,7 +352,7 @@ impl CollapsingHeader {
             paint_icon(ui, openness, &icon_response, empty_icon);
         }
 
-        ui.painter().galley(text_pos, galley, text_color);
+        ui.painter().galley_with_color(text_pos, galley, text_color);
 
         Prepared {
             id,

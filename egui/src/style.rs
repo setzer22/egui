@@ -233,6 +233,7 @@ pub struct Visuals {
 }
 
 impl Visuals {
+    #[inline(always)]
     pub fn noninteractive(&self) -> &WidgetVisuals {
         &self.widgets.noninteractive
     }
@@ -247,15 +248,18 @@ impl Visuals {
         crate::color::tint_color_towards(self.text_color(), self.window_fill())
     }
 
+    #[inline(always)]
     pub fn strong_text_color(&self) -> Color32 {
         // TODO @5Colors
         self.widgets.active.outer_text_color()
     }
 
+    #[inline(always)]
     pub fn window_fill(&self) -> Color32 {
         self.widgets.noninteractive.bg_fill
     }
 
+    #[inline(always)]
     pub fn window_stroke(&self) -> Stroke {
         self.widgets.noninteractive.bg_stroke
     }
@@ -334,6 +338,7 @@ pub struct WidgetVisuals {
 impl WidgetVisuals {
     /// Defined for compatibility reasons
     #[deprecated]
+    #[inline(always)]
     pub fn text_color(&self) -> Color32 {
         self.outer_text_color()
     }
