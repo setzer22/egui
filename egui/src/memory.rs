@@ -523,6 +523,16 @@ impl Areas {
         }
     }
 
+    pub fn move_to_bottom(&mut self, layer_id: LayerId) {
+        self.visible_current_frame.insert(layer_id);
+        self.wants_to_be_on_top.remove(&layer_id);
+
+        if let Some(idx) = self.order.iter().position(|x| *x == layer_id) {
+            self.order.remove(idx);
+        }
+        self.order.insert(0, layer_id);
+    }
+
     pub(crate) fn end_frame(&mut self) {
         let Self {
             visible_last_frame,
