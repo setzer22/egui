@@ -67,7 +67,7 @@ impl EguiGlium {
     ) -> std::time::Duration {
         let raw_input = self
             .egui_winit
-            .take_egui_input(display.gl_window().window());
+            .take_egui_input(Some(display.gl_window().window()));
         let egui::FullOutput {
             platform_output,
             repaint_after,
