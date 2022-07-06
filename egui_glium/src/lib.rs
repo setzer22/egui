@@ -55,7 +55,7 @@ impl EguiGlium {
     pub fn run(&mut self, display: &glium::Display, run_ui: impl FnMut(&egui::Context)) -> bool {
         let raw_input = self
             .egui_winit
-            .take_egui_input(display.gl_window().window());
+            .take_egui_input(Some(display.gl_window().window()));
         let egui::FullOutput {
             platform_output,
             needs_repaint,
