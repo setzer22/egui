@@ -59,6 +59,13 @@ pub struct State {
     pointer_touch_id: Option<u64>,
 }
 
+/// When calling `take_egui_input`, you either supply a window or a specific
+/// size depending on your use case.
+pub enum WindowOrSize<'a> {
+    Window(&'a winit::window::Window),
+    Size(egui::Vec2),
+}
+
 impl State {
     /// Initialize with:
     /// * `max_texture_side`: e.g. `GL_MAX_TEXTURE_SIZE`
@@ -115,7 +122,7 @@ impl State {
 
     /// Prepare for a new frame by extracting the accumulated input,
     /// as well as setting [the time](egui::RawInput::time) and [screen rectangle](egui::RawInput::screen_rect).
-    pub fn take_egui_input(&mut self, window: Option<&winit::window::Window>) -> egui::RawInput {
+    pub fn take_egui_input(&mut self, window_or_size: WindowOrSize) -> egui::RawInput {
         let pixels_per_point = self.pixels_per_point();
 
         self.egui_input.time = Some(self.start_time.elapsed().as_secs_f64());
@@ -123,19 +130,20 @@ impl State {
         // On Windows, a minimized window will have 0 width and height.
         // See: https://github.com/rust-windowing/winit/issues/208
         // This solves an issue where egui window positions would be changed when minimizing on Windows.
-        if let Some(window) = window {
-            let screen_size_in_pixels = screen_size_in_pixels(window);
-            let screen_size_in_points = screen_size_in_pixels / pixels_per_point;
-            self.egui_input.screen_rect =
-                if screen_size_in_points.x > 0.0 && screen_size_in_points.y > 0.0 {
-                    Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        screen_size_in_points,
-                    ))
-                } else {
-                    None
-                };
-        }
+        let screen_size_in_pixels = match window_or_size {
+            WindowOrSize::Window(window) => screen_size_in_pixels(window),
+            WindowOrSize::Size(v) => v,
+        };
+        let screen_size_in_points = screen_size_in_pixels / pixels_per_point;
+        self.egui_input.screen_rect =
+            if screen_size_in_points.x > 0.0 && screen_size_in_points.y > 0.0 {
+                Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    screen_size_in_points,
+                ))
+            } else {
+                None
+            };
 
         self.egui_input.take()
     }
