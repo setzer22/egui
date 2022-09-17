@@ -264,7 +264,9 @@ impl EpiIntegration {
         let frame_start = std::time::Instant::now();
 
         self.frame.info.window_info = read_window_info(window, self.egui_ctx.pixels_per_point());
-        let raw_input = self.egui_winit.take_egui_input(Some(window));
+        let raw_input = self
+            .egui_winit
+            .take_egui_input(egui_winit::WindowOrSize::Window(window));
         let full_output = self.egui_ctx.run(raw_input, |egui_ctx| {
             crate::profile_scope!("App::update");
             app.update(egui_ctx, &mut self.frame);
